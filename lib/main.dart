@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-// 稍后我们会创建这个 SolverService
-import 'solver_service.dart';
-// 引入我们的数据模型
-import 'models/calculation_step.dart';
+import 'package:latext/latext.dart';
+import 'package:simple_math_calc/models/calculation_step.dart';
+import 'package:simple_math_calc/solver_service.dart';
 
-void main() {
+void main() async {
   runApp(const MyApp());
 }
 
@@ -116,17 +115,9 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
-                  Text(step.explanation),
+                  SelectableText(step.explanation),
                   const SizedBox(height: 8),
-                  Center(
-                    child: Text(
-                      step.formula,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  Center(child: LaTexT(laTeXCode: Text(step.formula))),
                 ],
               ),
             ),
@@ -137,12 +128,17 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
           color: Theme.of(context).colorScheme.primaryContainer,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text(
-              "最终答案: ${result.finalAnswer}",
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
-              textAlign: TextAlign.center,
+            child: Column(
+              children: [
+                Text(
+                  "最终答案:",
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                LaTexT(laTeXCode: Text(result.finalAnswer)),
+              ],
             ),
           ),
         ),
