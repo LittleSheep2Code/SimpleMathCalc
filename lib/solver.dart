@@ -56,16 +56,16 @@ class SolverService {
     final steps = <CalculationStep>[];
     steps.add(
       CalculationStep(
-        title: '第一步：表达式求值',
+        stepNumber: 1,
+        title: '表达式求值',
         explanation: '这是一个标准的数学表达式，我们将直接计算其结果。',
         formula: input,
       ),
     );
 
-    Parser p = Parser();
+    GrammarParser p = GrammarParser();
     Expression exp = p.parse(input);
-    ContextModel cm = ContextModel();
-    final result = exp.evaluate(EvaluationType.REAL, cm);
+    final result = RealEvaluator().evaluate(exp);
 
     return CalculationResult(steps: steps, finalAnswer: result.toString());
   }
@@ -75,6 +75,7 @@ class SolverService {
     final steps = <CalculationStep>[];
     steps.add(
       CalculationStep(
+        stepNumber: 0,
         title: '原方程',
         explanation: '这是一元一次方程。',
         formula: '\$\$$input\$\$',
@@ -89,7 +90,8 @@ class SolverService {
 
     steps.add(
       CalculationStep(
-        title: '第一步：移项',
+        stepNumber: 1,
+        title: '移项',
         explanation: '将所有含 x 的项移到等式左边，常数项移到右边。',
         formula:
             '\$\$${a}x ${c >= 0 ? '-' : '+'} ${c.abs()}x = $d ${b >= 0 ? '-' : '+'} ${b.abs()}\$\$',
@@ -98,7 +100,8 @@ class SolverService {
 
     steps.add(
       CalculationStep(
-        title: '第二步：合并同类项',
+        stepNumber: 2,
+        title: '合并同类项',
         explanation: '合并等式两边的项。',
         formula: '\$\$${newA}x = $newD\$\$',
       ),
@@ -114,7 +117,8 @@ class SolverService {
     final x = newD / newA;
     steps.add(
       CalculationStep(
-        title: '第三步：求解 x',
+        stepNumber: 3,
+        title: '求解 x',
         explanation: '两边同时除以 x 的系数 ($newA)。',
         formula: '\$\$x = \frac{$newD}{$newA}\$\$',
       ),
@@ -143,7 +147,8 @@ class SolverService {
 
     steps.add(
       CalculationStep(
-        title: '第一步：整理方程',
+        stepNumber: 1,
+        title: '整理方程',
         explanation: r'将方程整理成标准形式 ax^2+bx+c=0。',
         formula:
             '\$\$${a}x^2 ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} $c = 0\$\$',
@@ -155,16 +160,18 @@ class SolverService {
       if (factors != null) {
         steps.add(
           CalculationStep(
-            title: '第二步：因式分解法 (十字相乘)',
+            stepNumber: 2,
+            title: '因式分解法 (十字相乘)',
             explanation: '我们发现可以将方程分解为两个一次因式的乘积。',
             formula: factors.formula,
           ),
         );
         steps.add(
           CalculationStep(
-            title: '第三步：求解',
+            stepNumber: 3,
+            title: '求解',
             explanation: '分别令每个因式等于 0，解出 x。',
-            formula: '解得 ${factors.solution}',
+            formula: factors.solution,
           ),
         );
         return CalculationResult(steps: steps, finalAnswer: factors.solution);
@@ -173,7 +180,8 @@ class SolverService {
 
     steps.add(
       CalculationStep(
-        title: '第二步：选择解法',
+        stepNumber: 2,
+        title: '选择解法',
         explanation: '无法进行因式分解，我们选择使用求根公式法。',
         formula: '\$\$\\Delta = b^2 - 4ac\$\$',
       ),
@@ -182,7 +190,8 @@ class SolverService {
     final delta = b * b - 4 * a * c;
     steps.add(
       CalculationStep(
-        title: '第三步：计算判别式 (Delta)',
+        stepNumber: 3,
+        title: '计算判别式 (Delta)',
         explanation:
             '\$\$\\Delta = b^2 - 4ac = ($b)^2 - 4 \\cdot ($a) \\cdot ($c) = $delta\$\$',
         formula: '\$\$\\Delta = $delta\$\$',
@@ -194,7 +203,8 @@ class SolverService {
       final x2 = (-b - sqrt(delta)) / (2 * a);
       steps.add(
         CalculationStep(
-          title: '第四步：应用求根公式',
+          stepNumber: 4,
+          title: '应用求根公式',
           explanation:
               r'因为 $\Delta > 0$，方程有两个不相等的实数根。公式: $x = \frac{-b \pm \sqrt{\Delta}}{2a}$。',
           formula:
@@ -210,7 +220,8 @@ class SolverService {
       final x = -b / (2 * a);
       steps.add(
         CalculationStep(
-          title: '第四步：应用求根公式',
+          stepNumber: 4,
+          title: '应用求根公式',
           explanation: r'因为 $\Delta = 0$，方程有两个相等的实数根。',
           formula: '\$\$x_1 = x_2 = ${x.toStringAsFixed(4)}\$\$',
         ),
@@ -222,7 +233,8 @@ class SolverService {
     } else {
       steps.add(
         CalculationStep(
-          title: '第四步：判断解',
+          stepNumber: 4,
+          title: '判断解',
           explanation: r'因为 $\Delta < 0$，该方程在实数范围内无解。',
           formula: '无实数解',
         ),
@@ -245,6 +257,7 @@ class SolverService {
 
     steps.add(
       CalculationStep(
+        stepNumber: 0,
         title: '原始方程组',
         explanation: '这是一个二元一次方程组，我们将使用加减消元法求解。',
         formula:
@@ -272,7 +285,8 @@ ${a2}x ${b2 >= 0 ? '+' : ''} ${b2}y = $c2 & (2)
 
     steps.add(
       CalculationStep(
-        title: '第一步：消元',
+        stepNumber: 1,
+        title: '消元',
         explanation: '为了消去变量 y，将方程(1)两边乘以 $b2，方程(2)两边乘以 $b1。',
         formula:
             '''
@@ -291,17 +305,19 @@ ${newA2}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC2 & (4)
 
     steps.add(
       CalculationStep(
-        title: '第二步：相减',
+        stepNumber: 2,
+        title: '相减',
         explanation: '将方程(3)减去方程(4)，得到一个只含 x 的方程。',
         formula:
-            '\$\$($newA1 - $newA2)x = $newC1 - $newC2 \Rightarrow ${xCoeff}x = $constCoeff\$\$',
+            '\$\$($newA1 - $newA2)x = $newC1 - $newC2 \\Rightarrow ${xCoeff}x = $constCoeff\$\$',
       ),
     );
 
     final x = constCoeff / xCoeff;
     steps.add(
       CalculationStep(
-        title: '第三步：解出 x',
+        stepNumber: 3,
+        title: '解出 x',
         explanation: '求解上述方程得到 x 的值。',
         formula: '\$\$x = $x\$\$',
       ),
@@ -313,7 +329,8 @@ ${newA2}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC2 & (4)
       final y = yConst / yCoeff;
       steps.add(
         CalculationStep(
-          title: '第四步：回代求解 y',
+          stepNumber: 4,
+          title: '回代求解 y',
           explanation: '将 x = $x 代入原方程(2)中。',
           formula:
               '''
@@ -330,14 +347,15 @@ ${b2}y &= ${c2 - a2 * x}
       );
       steps.add(
         CalculationStep(
-          title: '第五步：解出 y',
+          stepNumber: 5,
+          title: '解出 y',
           explanation: '求解得到 y 的值。',
           formula: '\$\$y = $y\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
-        finalAnswer: '\$\$x = $x, \quad y = $y\$\$',
+        finalAnswer: '\$\$x = $x, \\quad y = $y\$\$',
       );
     } else {
       final yCoeff = b1;
@@ -345,7 +363,8 @@ ${b2}y &= ${c2 - a2 * x}
       final y = yConst / yCoeff;
       steps.add(
         CalculationStep(
-          title: '第四步：回代求解 y',
+          stepNumber: 4,
+          title: '回代求解 y',
           explanation: '将 x = $x 代入原方程(1)中。',
           formula:
               '''
@@ -362,7 +381,8 @@ ${b1}y &= ${c1 - a1 * x}
       );
       steps.add(
         CalculationStep(
-          title: '第五步：解出 y',
+          stepNumber: 5,
+          title: '解出 y',
           explanation: '求解得到 y 的值。',
           formula: '\$\$y = $y\$\$',
         ),
