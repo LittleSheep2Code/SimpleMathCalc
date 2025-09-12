@@ -74,6 +74,8 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                       hintText: '例如: 2x^2 - 8x + 6 = 0',
                     ),
                     onSubmitted: (_) => _solveEquation(),
+                    onTapOutside: (_) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
                   ),
                 ),
                 IconButton(

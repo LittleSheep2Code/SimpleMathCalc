@@ -29,11 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _widgetOptions.elementAt(_selectedIndex),
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calculate),
-            label: 'Calculator',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.info), label: 'About'),
+          BottomNavigationBarItem(icon: Icon(Icons.calculate), label: '计算'),
+          BottomNavigationBarItem(icon: Icon(Icons.info), label: '关于'),
         ],
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,

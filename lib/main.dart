@@ -17,19 +17,17 @@ class CalcApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: '方程计算器',
+      title: 'SimpleMathCalc',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
         textTheme: GoogleFonts.notoSerifScTextTheme(
-          Theme.of(context).textTheme, // Inherit existing text theme
+          ThemeData().textTheme, // Inherit existing text theme
         ),
       ),
       darkTheme: ThemeData.dark().copyWith(
         primaryColor: Colors.blue,
-        textTheme: GoogleFonts.notoSerifScTextTheme(
-          Theme.of(context).textTheme,
-        ),
+        textTheme: GoogleFonts.notoSerifScTextTheme(ThemeData.dark().textTheme),
       ),
       themeMode: ThemeMode.system,
       routerConfig: _router,
