@@ -75,7 +75,11 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('方程与表达式计算器')),
+      appBar: AppBar(
+        title: const Text('方程与表达式计算器'),
+        centerTitle: false,
+        leading: const Icon(Icons.calculate_outlined),
+      ),
       body: Column(
         children: [
           Padding(
