@@ -43,7 +43,7 @@ class AboutPage extends StatelessWidget {
                 Opacity(
                   opacity: 0.8,
                   child: Text(
-                    '这是一个用于求解方程和表达式的计算器应用。\n支持多种类型的数学计算，包括代数方程、表达式求值等。\n\n结果仅供参考，纯机器计算，无 AI 成分。\n\n在书写方程的时候，请勿使用中文符号，平方请使用 ^n 来表示 n 次方。\n\n理性使用，仅为辅助学习目的，过量使用有害考试成绩。',
+                    '这是一个用于求解方程和表达式的计算器应用。\n支持多种类型的数学计算，包括代数方程、表达式求值等。\n\n结果仅供参考，纯机器计算，无 AI 成分。\n\n在书写方程的时候，请勿使用中文符号，平方请使用 ^n 来表示 n 次方。\n\n虽然本项目存在的原因是小羊不想写数学作业，但是我还是要说\n理性使用，仅为辅助学习目的，过量使用有害考试成绩。',
                     style: Theme.of(context).textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -78,7 +78,7 @@ class AboutPage extends StatelessWidget {
 
   Future<void> _launchUrl(String url) async {
     final Uri uri = Uri.parse(url);
-    if (!await launchUrl(uri)) {
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       throw Exception('Could not launch $url');
     }
   }

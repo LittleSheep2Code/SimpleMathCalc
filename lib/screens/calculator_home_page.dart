@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:latext/latext.dart';
 import 'package:simple_math_calc/models/calculation_step.dart';
 import 'package:simple_math_calc/solver.dart';
@@ -14,9 +15,28 @@ class CalculatorHomePage extends StatefulWidget {
 class _CalculatorHomePageState extends State<CalculatorHomePage> {
   final TextEditingController _controller = TextEditingController();
   final SolverService _solverService = SolverService();
+  late final FocusNode _focusNode;
 
   CalculationResult? _result;
   bool _isLoading = false;
+  bool _isInputFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode();
+    _focusNode.addListener(() {
+      setState(() {
+        _isInputFocused = _focusNode.hasFocus;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   void _solveEquation() {
     if (_controller.text.isEmpty) {
@@ -48,6 +68,16 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
     }
   }
 
+  void _insertSymbol(String symbol) {
+    final text = _controller.text;
+    final selection = _controller.selection;
+    final newText = text.replaceRange(selection.start, selection.end, symbol);
+    _controller.text = newText;
+    _controller.selection = TextSelection.collapsed(
+      offset: selection.start + symbol.length,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -66,6 +96,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                 Expanded(
                   child: TextField(
                     controller: _controller,
+                    focusNode: _focusNode,
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
                       border: const OutlineInputBorder(),
@@ -74,8 +105,6 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                       hintText: '例如: 2x^2 - 8x + 6 = 0',
                     ),
                     onSubmitted: (_) => _solveEquation(),
-                    onTapOutside: (_) =>
-                        FocusManager.instance.primaryFocus?.unfocus(),
                   ),
                 ),
                 IconButton(
@@ -92,6 +121,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                 ? const Center(child: Text('请输入方程开始计算'))
                 : buildResultView(_result!),
           ),
+          if (_isInputFocused) _buildToolbar(),
         ],
       ),
     );
@@ -118,7 +148,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                     padding: const EdgeInsets.only(
                       left: 12,
                       right: 12,
-                      bottom: 4,
+                      bottom: 16,
                       top: 16,
                     ),
                     child: Column(
@@ -169,10 +199,9 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
         Card(
           color: Theme.of(context).colorScheme.primaryContainer,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: Column(
               children: [
-                const SizedBox(height: 16),
                 Text(
                   "最终答案",
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -192,6 +221,39 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildToolbar() {
+    return Material(
+      elevation: 8,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          spacing: 16,
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => _insertSymbol('('),
+                child: Text('(', style: GoogleFonts.robotoMono()),
+              ),
+            ),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => _insertSymbol(')'),
+                child: Text(')', style: GoogleFonts.robotoMono()),
+              ),
+            ),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: () => _insertSymbol('^'),
+                child: Text('^', style: GoogleFonts.robotoMono()),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
