@@ -175,7 +175,7 @@ class SolverService {
       CalculationStep(
         title: '第二步：选择解法',
         explanation: '无法进行因式分解，我们选择使用求根公式法。',
-        formula: r'\$\$\Delta = b^2 - 4ac\$\$',
+        formula: '\$\$\\Delta = b^2 - 4ac\$\$',
       ),
     );
 
@@ -184,8 +184,8 @@ class SolverService {
       CalculationStep(
         title: '第三步：计算判别式 (Delta)',
         explanation:
-            '\$\$\Delta = b^2 - 4ac = ($b)^2 - 4 \cdot ($a) \cdot ($c) = $delta\$\$',
-        formula: '\$\$\Delta = $delta\$\$',
+            '\$\$\\Delta = b^2 - 4ac = ($b)^2 - 4 \\cdot ($a) \\cdot ($c) = $delta\$\$',
+        formula: '\$\$\\Delta = $delta\$\$',
       ),
     );
 
@@ -198,13 +198,13 @@ class SolverService {
           explanation:
               r'因为 $\Delta > 0$，方程有两个不相等的实数根。公式: $x = \frac{-b \pm \sqrt{\Delta}}{2a}$。',
           formula:
-              '\$\$x_1 = ${x1.toStringAsFixed(4)}, \quad x_2 = ${x2.toStringAsFixed(4)}\$\$',
+              '\$\$x_1 = ${x1.toStringAsFixed(4)}, \\quad x_2 = ${x2.toStringAsFixed(4)}\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
         finalAnswer:
-            '\$\$x_1 = ${x1.toStringAsFixed(4)}, \quad x_2 = ${x2.toStringAsFixed(4)}\$\$',
+            '\$\$x_1 = ${x1.toStringAsFixed(4)}, \\quad x_2 = ${x2.toStringAsFixed(4)}\$\$',
       );
     } else if (delta == 0) {
       final x = -b / (2 * a);
@@ -250,7 +250,7 @@ class SolverService {
         formula:
             '''
 
-egin{cases}
+\\begin{cases}
 ${a1}x ${b1 >= 0 ? '+' : ''} ${b1}y = $c1 & (1) \\
 ${a2}x ${b2 >= 0 ? '+' : ''} ${b2}y = $c2 & (2)
 \\end{cases}
@@ -277,7 +277,7 @@ ${a2}x ${b2 >= 0 ? '+' : ''} ${b2}y = $c2 & (2)
         formula:
             '''
 
-egin{cases}
+\\begin{cases}
 ${newA1}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC1 & (3) \\
 ${newA2}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC2 & (4)
 \\end{cases}
