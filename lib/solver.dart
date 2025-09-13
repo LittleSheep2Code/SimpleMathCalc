@@ -243,11 +243,29 @@ class SolverService {
         CalculationStep(
           stepNumber: 4,
           title: '判断解',
-          explanation: r'因为 $\Delta < 0$，该方程在实数范围内无解。',
-          formula: '无实数解',
+          explanation: r'因为 $\Delta < 0$，该方程在实数范围内无解，但有虚数解。',
+          formula: '无实数解，有虚数解',
         ),
       );
-      return CalculationResult(steps: steps, finalAnswer: '无实数解');
+
+      final sqrtDelta = sqrt(-delta);
+      final realPart = -b / (2 * a);
+      final imagPart = sqrtDelta / (2 * a);
+
+      steps.add(
+        CalculationStep(
+          stepNumber: 5,
+          title: '计算虚数根',
+          explanation: '使用求根公式计算虚数根。',
+          formula: r'$$x = \frac{-b \pm \sqrt{-\Delta} i}{2a}$$',
+        ),
+      );
+
+      return CalculationResult(
+        steps: steps,
+        finalAnswer:
+            '\$\$x_1 = ${realPart.toStringAsFixed(4)} + ${imagPart.toStringAsFixed(4)}i, \\quad x_2 = ${realPart.toStringAsFixed(4)} - ${imagPart.toStringAsFixed(4)}i\$\$',
+      );
     }
   }
 
@@ -270,12 +288,12 @@ class SolverService {
         explanation: '这是一个二元一次方程组，我们将使用加减消元法求解。',
         formula:
             '''
-
+\$\$
 \\begin{cases}
-${a1}x ${b1 >= 0 ? '+' : ''} ${b1}y = $c1 & (1) \\
+${a1}x ${b1 >= 0 ? '+' : ''} ${b1}y = $c1 & (1) \\\\
 ${a2}x ${b2 >= 0 ? '+' : ''} ${b2}y = $c2 & (2)
 \\end{cases}
-
+\$\$
 ''',
       ),
     );
@@ -344,9 +362,9 @@ ${newA2}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC2 & (4)
               '''
 
 \\begin{aligned}
-$a2($x) + ${b2}y &= $c2 \\
-${a2 * x} + ${b2}y &= $c2 \\
-${b2}y &= $c2 - ${a2 * x} \\
+$a2($x) + ${b2}y &= $c2 \\\\
+${a2 * x} + ${b2}y &= $c2 \\\\
+${b2}y &= $c2 - ${a2 * x} \\\\
 ${b2}y &= ${c2 - a2 * x}
 \\end{aligned}
 
@@ -378,9 +396,9 @@ ${b2}y &= ${c2 - a2 * x}
               '''
 
 \\begin{aligned}
-$a1($x) + ${b1}y &= $c1 \\
-${a1 * x} + ${b1}y &= $c1 \\
-${b1}y &= $c1 - ${a1 * x} \\
+$a1($x) + ${b1}y &= $c1 \\\\
+${a1 * x} + ${b1}y &= $c1 \\\\
+${b1}y &= $c1 - ${a1 * x} \\\\
 ${b1}y &= ${c1 - a1 * x}
 \\end{aligned}
 
