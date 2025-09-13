@@ -1,6 +1,4 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:latext/latext.dart';
 import 'package:simple_math_calc/models/calculation_step.dart';
 import 'package:simple_math_calc/solver.dart';
@@ -20,17 +18,11 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
 
   CalculationResult? _result;
   bool _isLoading = false;
-  bool _isInputFocused = false;
 
   @override
   void initState() {
     super.initState();
     _focusNode = FocusNode();
-    _focusNode.addListener(() {
-      setState(() {
-        _isInputFocused = _focusNode.hasFocus;
-      });
-    });
   }
 
   @override
@@ -69,21 +61,11 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
     }
   }
 
-  void _insertSymbol(String symbol) {
-    final text = _controller.text;
-    final selection = _controller.selection;
-    final newText = text.replaceRange(selection.start, selection.end, symbol);
-    _controller.text = newText;
-    _controller.selection = TextSelection.collapsed(
-      offset: selection.start + symbol.length,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('方程与表达式计算器'),
+        title: const Text('计算器'),
         centerTitle: false,
         leading: const Icon(Icons.calculate_outlined),
       ),
@@ -105,12 +87,10 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                       floatingLabelAlignment: FloatingLabelAlignment.center,
                       hintText: '例如: 2x^2 - 8x + 6 = 0',
                     ),
-                    keyboardType: kIsWeb
-                        ? TextInputType.numberWithOptions(
-                            signed: true,
-                            decimal: true,
-                          )
-                        : TextInputType.number,
+                    keyboardType: TextInputType.numberWithOptions(
+                      signed: true,
+                      decimal: true,
+                    ),
                     onSubmitted: (_) => _solveEquation(),
                   ),
                 ),
@@ -128,7 +108,6 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                 ? const Center(child: Text('请输入方程开始计算'))
                 : buildResultView(_result!),
           ),
-          if (_isInputFocused) _buildToolbar(),
         ],
       ),
     );
@@ -240,154 +219,6 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildToolbar() {
-    return Material(
-      elevation: 8,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: Tooltip(
-                    message: '左括号',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('('),
-                      child: Text('(', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '右括号',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol(')'),
-                      child: Text(')', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '幂符号',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('^'),
-                      child: Text('^', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '平方',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('^2'),
-                      child: Text('²', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '未知数',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('x'),
-                      child: Text('x', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '未知数二号',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('y'),
-                      child: Text('y', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: Tooltip(
-                    message: '加法',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('+'),
-                      child: Text('+', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '减法',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('-'),
-                      child: Text('-', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '乘法',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('*'),
-                      child: Text('*', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '除法',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('/'),
-                      child: Text('/', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '小数点',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('.'),
-                      child: Text('.', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Tooltip(
-                    message: '等于号',
-                    child: FilledButton.tonal(
-                      onPressed: () => _insertSymbol('='),
-                      child: Text('=', style: GoogleFonts.robotoMono()),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (!kIsWeb) const SizedBox(height: 8),
-            if (!kIsWeb)
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      icon: const Icon(Icons.keyboard_hide),
-                      onPressed: () => _focusNode.unfocus(),
-                      label: Text('收起键盘'),
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
     );
   }
 }
