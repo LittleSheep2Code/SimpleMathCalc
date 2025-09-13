@@ -277,10 +277,9 @@ class SolverService {
 
     final deltaDouble = delta.toDouble();
     if (deltaDouble > 0) {
-      // Keep sqrt symbolic instead of evaluating to decimal
-      final sqrtDeltaStr = _formatSqrtExpression(delta.toDouble());
-      final x1Expr = _formatQuadraticRoot(-b, sqrtDeltaStr, 2 * a, true);
-      final x2Expr = _formatQuadraticRoot(-b, sqrtDeltaStr, 2 * a, false);
+      // Pass delta directly to maintain precision
+      final x1Expr = _formatQuadraticRoot(-b, delta, 2 * a, true);
+      final x2Expr = _formatQuadraticRoot(-b, delta, 2 * a, false);
 
       steps.add(
         CalculationStep(
@@ -319,8 +318,9 @@ class SolverService {
         ),
       );
 
-      // Keep sqrt symbolic for complex roots
-      final sqrtNegDeltaStr = _formatSqrtExpression(-delta.toDouble());
+      // For complex roots, we need to handle -delta
+      final negDelta = -delta;
+      final sqrtNegDeltaStr = _formatSqrtFromRational(negDelta);
       final realPart = -b / (2 * a);
       final imagPartExpr = _formatImaginaryPart(sqrtNegDeltaStr, 2 * a);
 
@@ -1079,49 +1079,113 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
   int gcd(int a, int b) => b == 0 ? a : gcd(b, a % b);
 
-  /// 格式化平方根表达式，保持符号形式
-  String _formatSqrtExpression(double value) {
-    if (value == 0) return '0';
+  /// 格式化 Rational 值的平方根表达式，保持符号形式
+  String _formatSqrtFromRational(Rational value) {
+    if (value == Rational.zero) return '0';
 
     // 处理负数（用于复数根）
-    if (value < 0) {
-      return '\\sqrt{${(-value).toInt()}}';
+    if (value < Rational.zero) {
+      return '\\sqrt{${(-value).toBigInt()}}';
     }
 
-    // 检查是否为完全平方数
-    final sqrtValue = sqrt(value);
-    final rounded = sqrtValue.round();
-    if ((sqrtValue - rounded).abs() < 1e-10) {
-      return rounded.toString();
-    }
+    // 尝试将 Rational 转换为完全平方数的形式
+    // 例如: 4/9 -> 2/3, 9/4 -> 3/2, 25/16 -> 5/4 等
 
-    // 寻找最大的完全平方数因子
-    int maxSquareFactor = 1;
-    int intValue = value.toInt();
-    for (int i = 2; i * i <= intValue; i++) {
-      if (intValue % (i * i) == 0) {
-        maxSquareFactor = i * i;
+    // 首先简化分数
+    final simplified = value;
+
+    // 检查分子和分母是否都是完全平方数
+    final numerator = simplified.numerator;
+    final denominator = simplified.denominator;
+
+    // 寻找分子和分母的平方根因子
+    BigInt sqrtNumerator = _findSquareRootFactor(numerator);
+    BigInt sqrtDenominator = _findSquareRootFactor(denominator);
+
+    // 计算剩余的分子和分母
+    final remainingNumerator = numerator ~/ (sqrtNumerator * sqrtNumerator);
+    final remainingDenominator =
+        denominator ~/ (sqrtDenominator * sqrtDenominator);
+
+    // 构建结果
+    String result = '';
+
+    // 处理系数部分
+    if (sqrtNumerator > BigInt.one || sqrtDenominator > BigInt.one) {
+      if (sqrtNumerator > sqrtDenominator) {
+        final coeff = sqrtNumerator ~/ sqrtDenominator;
+        if (coeff > BigInt.one) {
+          result += '$coeff';
+        }
+      } else if (sqrtDenominator > sqrtNumerator) {
+        // 这会导致分母，需要用分数表示
+        final coeffNum = sqrtNumerator;
+        final coeffDen = sqrtDenominator;
+        if (coeffNum == BigInt.one) {
+          result += '\\frac{1}{$coeffDen}';
+        } else {
+          result += '\\frac{$coeffNum}{$coeffDen}';
+        }
       }
     }
 
-    final coefficient = sqrt(maxSquareFactor).round();
-    final remaining = intValue ~/ maxSquareFactor;
-
-    if (remaining == 1) {
-      return coefficient == 1
-          ? '\\sqrt{$intValue}'
-          : '$coefficient\\sqrt{$remaining}';
-    } else if (coefficient == 1) {
-      return '\\sqrt{$remaining}';
+    // 处理根号部分
+    if (remainingNumerator == BigInt.one &&
+        remainingDenominator == BigInt.one) {
+      // 没有根号部分
+      if (result.isEmpty) {
+        return '1';
+      }
+    } else if (remainingNumerator == remainingDenominator) {
+      // 根号部分约分后为1
+      if (result.isEmpty) {
+        return '1';
+      }
     } else {
-      return '$coefficient\\sqrt{$remaining}';
+      // 需要根号
+      String sqrtContent = '';
+      if (remainingDenominator == BigInt.one) {
+        sqrtContent = '$remainingNumerator';
+      } else {
+        sqrtContent = '\\frac{$remainingNumerator}{$remainingDenominator}';
+      }
+
+      if (result.isEmpty) {
+        result = '\\sqrt{$sqrtContent}';
+      } else {
+        result += '\\sqrt{$sqrtContent}';
+      }
     }
+
+    return result.isEmpty ? '1' : result;
+  }
+
+  /// 寻找一个大整数的平方根因子
+  BigInt _findSquareRootFactor(BigInt n) {
+    if (n <= BigInt.one) return BigInt.one;
+
+    BigInt factor = BigInt.one;
+    BigInt i = BigInt.two;
+
+    while (i * i <= n) {
+      BigInt count = BigInt.zero;
+      while (n % (i * i) == BigInt.zero) {
+        n = n ~/ (i * i);
+        count += BigInt.one;
+      }
+      if (count > BigInt.zero) {
+        factor = factor * i;
+      }
+      i += BigInt.one;
+    }
+
+    return factor;
   }
 
   /// 格式化二次方程的根：(-b ± sqrt(delta)) / (2a)
   String _formatQuadraticRoot(
     double b,
-    String sqrtExpr,
+    Rational delta,
     double denominator,
     bool isPlus,
   ) {
@@ -1133,22 +1197,23 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         : '(${b.toInt()})';
     final denomStr = denominator == 2 ? '2' : denominator.toString();
 
+    // Format sqrt(delta) symbolically using the Rational value
+    final sqrtExpr = _formatSqrtFromRational(delta);
+
     if (b == 0) {
       // 简化为 ±sqrt(delta)/denominator
       if (denominator == 2) {
-        return isPlus
-            ? '\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{2}'
-            : '-\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{2}';
+        return isPlus ? '\\frac{$sqrtExpr}{2}' : '-\\frac{$sqrtExpr}{2}';
       } else {
         return isPlus
-            ? '\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{$denomStr}'
-            : '-\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{$denomStr}';
+            ? '\\frac{$sqrtExpr}{$denomStr}'
+            : '-\\frac{$sqrtExpr}{$denomStr}';
       }
     } else {
       // 完整的表达式：(-b ± sqrt(delta))/denominator
       final numerator = b > 0
-          ? '-$bStr $sign \\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}'
-          : '(${b.toInt()}) $sign \\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}';
+          ? '-$bStr $sign $sqrtExpr'
+          : '(${b.toInt()}) $sign $sqrtExpr';
 
       if (denominator == 2) {
         return '\\frac{$numerator}{2}';
@@ -1254,33 +1319,6 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     }
 
     return coeffs;
-  }
-
-  /// 规范化系数字符串
-  String _normalizeCoefficientString(String coeff) {
-    if (coeff.isEmpty || coeff == '+') return '1';
-    if (coeff == '-') return '-1';
-
-    // 处理类似 "2sqrt(3)" 的情况
-    coeff = coeff.replaceAll(' ', ''); // 移除空格
-
-    // 检查是否是纯数字
-    final numValue = double.tryParse(coeff);
-    if (numValue != null) {
-      return coeff;
-    }
-
-    // 检查是否包含 sqrt
-    if (coeff.contains('sqrt(') || coeff.contains('\\sqrt{')) {
-      // 如果前面没有数字系数，默认为 1
-      if (coeff.startsWith('sqrt(') || coeff.startsWith('\\sqrt{')) {
-        return coeff.startsWith('-') ? coeff : '1' + coeff;
-      }
-      // 如果前面有数字，保持原样
-      return coeff;
-    }
-
-    return coeff;
   }
 
   /// 合并系数，保持符号形式
