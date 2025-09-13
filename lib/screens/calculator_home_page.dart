@@ -104,6 +104,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                       floatingLabelAlignment: FloatingLabelAlignment.center,
                       hintText: '例如: 2x^2 - 8x + 6 = 0',
                     ),
+                    keyboardType: TextInputType.number,
                     onSubmitted: (_) => _solveEquation(),
                   ),
                 ),
@@ -159,7 +160,18 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 4),
-                        SelectableText(step.explanation),
+                        if (!step.explanation.contains(r'$'))
+                          SelectableText(
+                            step.explanation,
+                            textAlign: TextAlign.center,
+                          )
+                        else
+                          LaTexT(
+                            laTeXCode: Text(
+                              step.explanation,
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         Center(
                           child: LaTexT(
                             laTeXCode: Text(
@@ -182,6 +194,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                           backgroundColor: Theme.of(
                             context,
                           ).colorScheme.primary,
+                          textColor: Theme.of(context).colorScheme.onPrimary,
                           label: Text(
                             step.stepNumber.toString(),
                             style: TextStyle(fontSize: 32),
@@ -229,27 +242,132 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
       elevation: 8,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          spacing: 16,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _insertSymbol('('),
-                child: Text('(', style: GoogleFonts.robotoMono()),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              spacing: 16,
+              children: [
+                Expanded(
+                  child: Tooltip(
+                    message: '左括号',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('('),
+                      child: Text('(', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '右括号',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol(')'),
+                      child: Text(')', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '幂符号',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('^'),
+                      child: Text('^', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '平方',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('^2'),
+                      child: Text('^2', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '未知数',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('x'),
+                      child: Text('x', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _insertSymbol(')'),
-                child: Text(')', style: GoogleFonts.robotoMono()),
-              ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              spacing: 16,
+              children: [
+                Expanded(
+                  child: Tooltip(
+                    message: '加法',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('+'),
+                      child: Text('+', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '减法',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('-'),
+                      child: Text('-', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '乘法',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('*'),
+                      child: Text('*', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '除法',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('/'),
+                      child: Text('/', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '小数点',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('.'),
+                      child: Text('.', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Tooltip(
+                    message: '等于号',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('='),
+                      child: Text('=', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _insertSymbol('^'),
-                child: Text('^', style: GoogleFonts.robotoMono()),
-              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.keyboard_hide),
+                    onPressed: () => _focusNode.unfocus(),
+                    label: Text('收起键盘'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

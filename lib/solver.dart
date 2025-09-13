@@ -149,7 +149,7 @@ class SolverService {
       CalculationStep(
         stepNumber: 1,
         title: '整理方程',
-        explanation: r'将方程整理成标准形式 ax^2+bx+c=0。',
+        explanation: r'将方程整理成标准形式 $ax^2+bx+c=0$。',
         formula:
             '\$\$${a}x^2 ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} $c = 0\$\$',
       ),
