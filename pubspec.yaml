@@ -40,6 +40,7 @@ dependencies:
   go_router: ^16.2.1
   url_launcher: ^6.3.2
   rational: ^2.2.3
+  fl_chart: ^0.66.1
 
 dev_dependencies:
   flutter_test:

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:latext/latext.dart';
 import 'package:simple_math_calc/models/calculation_step.dart';
 import 'package:simple_math_calc/solver.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:math_expressions/math_expressions.dart' as math_expressions;
 import 'dart:math';
 
 class CalculatorHomePage extends StatefulWidget {
@@ -18,17 +20,139 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
 
   CalculationResult? _result;
   bool _isLoading = false;
+  double _zoomFactor = 1.0;
 
   @override
   void initState() {
     super.initState();
     _focusNode = FocusNode();
+    _controller.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onTextChanged() {
+    setState(() {});
+  }
+
+  /// 生成函数图表的点
+  List<FlSpot> _generatePlotPoints(String expression, double zoomFactor) {
+    try {
+      // 如果是方程，取左边作为函数
+      String functionExpr = expression;
+      if (expression.contains('=')) {
+        functionExpr = expression.split('=')[0].trim();
+      }
+
+      // 如果表达式不包含 x，返回空列表
+      if (!functionExpr.contains('x') && !functionExpr.contains('X')) {
+        return [];
+      }
+
+      // 预处理表达式，确保格式正确
+      functionExpr = functionExpr.replaceAll(' ', '');
+
+      // 在数字和变量之间插入乘号
+      functionExpr = functionExpr.replaceAllMapped(
+        RegExp(r'(\d)([a-zA-Z])'),
+        (match) => '${match.group(1)}*${match.group(2)}',
+      );
+
+      // 在变量和数字之间插入乘号 (如 x2 -> x*2)
+      functionExpr = functionExpr.replaceAllMapped(
+        RegExp(r'([a-zA-Z])(\d)'),
+        (match) => '${match.group(1)}*${match.group(2)}',
+      );
+
+      // 解析表达式
+      final parser = math_expressions.ShuntingYardParser();
+      final expr = parser.parse(functionExpr);
+
+      // 创建变量 x
+      final x = math_expressions.Variable('x');
+
+      // 根据缩放因子动态调整范围和步长
+      final range = 10.0 * zoomFactor;
+      final step = max(0.05, 0.2 / zoomFactor); // 缩放时步长更小，放大时步长更大
+
+      // 生成点
+      List<FlSpot> points = [];
+      for (double i = -range; i <= range; i += step) {
+        try {
+          final context = math_expressions.ContextModel()
+            ..bindVariable(x, math_expressions.Number(i));
+          final evaluator = math_expressions.RealEvaluator(context);
+          final y = evaluator.evaluate(expr);
+
+          if (y.isFinite && !y.isNaN) {
+            points.add(FlSpot(i, y.toDouble()));
+          }
+        } catch (e) {
+          // 跳过无法计算的点
+          continue;
+        }
+      }
+
+      // 如果没有足够的点，返回空列表
+      if (points.length < 2) {
+        debugPrint('Generated ${points.length} dots');
+        return [];
+      }
+
+      // 排序点按 x 值
+      points.sort((a, b) => a.x.compareTo(b.x));
+
+      debugPrint(
+        'Generated ${points.length} dots with zoom factor $zoomFactor',
+      );
+      return points;
+    } catch (e) {
+      debugPrint('Error generating plot points: $e');
+      return [];
+    }
+  }
+
+  /// 计算图表的数据范围
+  ({double minX, double maxX, double minY, double maxY}) _calculateChartBounds(
+    List<FlSpot> points,
+    double zoomFactor,
+  ) {
+    if (points.isEmpty) {
+      return (
+        minX: -10 * zoomFactor,
+        maxX: 10 * zoomFactor,
+        minY: -50 * zoomFactor,
+        maxY: 50 * zoomFactor,
+      );
+    }
+
+    double minX = points.first.x;
+    double maxX = points.first.x;
+    double minY = points.first.y;
+    double maxY = points.first.y;
+
+    for (final point in points) {
+      minX = min(minX, point.x);
+      maxX = max(maxX, point.x);
+      minY = min(minY, point.y);
+      maxY = max(maxY, point.y);
+    }
+
+    // 添加边距
+    final xPadding = (maxX - minX) * 0.1;
+    final yPadding = (maxY - minY) * 0.1;
+
+    return (
+      minX: minX - xPadding,
+      maxX: maxX + xPadding,
+      minY: minY - yPadding,
+      maxY: maxY + yPadding,
+    );
   }
 
   void _solveEquation() {
@@ -59,6 +183,18 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
         _isLoading = false;
       });
     }
+  }
+
+  void _zoomIn() {
+    setState(() {
+      _zoomFactor = (_zoomFactor * 0.8).clamp(0.1, 10.0);
+    });
+  }
+
+  void _zoomOut() {
+    setState(() {
+      _zoomFactor = (_zoomFactor * 1.25).clamp(0.1, 10.0);
+    });
   }
 
   @override
@@ -212,6 +348,101 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Text(
+                        '函数图像',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          onPressed: _zoomIn,
+                          icon: Icon(Icons.zoom_in),
+                          tooltip: '放大',
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        IconButton(
+                          onPressed: _zoomOut,
+                          icon: Icon(Icons.zoom_out),
+                          tooltip: '缩小',
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 300,
+                  child: Builder(
+                    builder: (context) {
+                      final points = _generatePlotPoints(
+                        _controller.text,
+                        _zoomFactor,
+                      );
+                      final bounds = _calculateChartBounds(points, _zoomFactor);
+
+                      return LineChart(
+                        LineChartData(
+                          gridData: FlGridData(show: true),
+                          titlesData: FlTitlesData(
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 40,
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 30,
+                              ),
+                            ),
+                            topTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: true),
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: points,
+                              isCurved: true,
+                              color: Theme.of(context).colorScheme.primary,
+                              barWidth: 3,
+                              belowBarData: BarAreaData(show: false),
+                              dotData: FlDotData(show: false),
+                            ),
+                          ],
+                          minX: bounds.minX,
+                          maxX: bounds.maxX,
+                          minY: bounds.minY,
+                          maxY: bounds.maxY,
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
