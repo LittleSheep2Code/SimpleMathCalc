@@ -120,7 +120,7 @@ class SolverService {
         stepNumber: 3,
         title: '求解 x',
         explanation: '两边同时除以 x 的系数 ($newA)。',
-        formula: '\$\$x = \frac{$newD}{$newA}\$\$',
+        formula: '\$\$x = \\frac{$newD}{$newA}\$\$',
       ),
     );
 
@@ -171,6 +171,14 @@ class SolverService {
             stepNumber: 3,
             title: '求解',
             explanation: '分别令每个因式等于 0，解出 x。',
+            formula: factors.solution,
+          ),
+        );
+        steps.add(
+          CalculationStep(
+            stepNumber: 4,
+            title: '化简结果',
+            explanation: '将分数化简到最简形式，并将负号写在分数外面。',
             formula: factors.solution,
           ),
         );
@@ -569,8 +577,8 @@ ${b1}y &= ${c1 - a1 * x}
     int root2Num = -n ~/ g2;
     int root2Den = a ~/ g2;
 
-    String sol1 = root1Den == 1 ? '$root1Num' : '\\frac{$root1Num}{$root1Den}';
-    String sol2 = root2Den == 1 ? '$root2Num' : '\\frac{$root2Num}{$root2Den}';
+    String sol1 = _formatFraction(root1Num, root1Den);
+    String sol2 = _formatFraction(root2Num, root2Den);
 
     // For formula, show (a x + m)(x + n/a) or simplified
     String f1 = a == 1 ? 'x' : '${a}x';
@@ -595,6 +603,27 @@ ${b1}y &= ${c1 - a1 * x}
     }
 
     return (formula: formula, solution: solution);
+  }
+
+  String _formatFraction(int num, int den) {
+    if (den == 0) return 'undefined';
+
+    // Handle sign: make numerator positive, put sign outside
+    bool isNegative = (num < 0) != (den < 0);
+    int absNum = num.abs();
+    int absDen = den.abs();
+
+    // Simplify fraction
+    int g = gcd(absNum, absDen);
+    absNum ~/= g;
+    absDen ~/= g;
+
+    if (absDen == 1) {
+      return isNegative ? '-$absNum' : '$absNum';
+    } else {
+      String fraction = '\\frac{$absNum}{$absDen}';
+      return isNegative ? '-$fraction' : fraction;
+    }
   }
 
   int gcd(int a, int b) => b == 0 ? a : gcd(b, a % b);
