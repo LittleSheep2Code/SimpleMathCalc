@@ -1189,12 +1189,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     double denominator,
     bool isPlus,
   ) {
-    final sign = isPlus ? '+' : '-';
-    final bStr = b == 0
-        ? ''
-        : b > 0
-        ? '${b.toInt()}'
-        : '(${b.toInt()})';
+    final denomInt = denominator.toInt();
     final denomStr = denominator == 2 ? '2' : denominator.toString();
 
     // Format sqrt(delta) symbolically using the Rational value
@@ -1211,14 +1206,45 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
       }
     } else {
       // 完整的表达式：(-b ± sqrt(delta))/denominator
-      final numerator = b > 0
-          ? '-$bStr $sign $sqrtExpr'
-          : '(${b.toInt()}) $sign $sqrtExpr';
+      final bInt = b.toInt();
 
-      if (denominator == 2) {
-        return '\\frac{$numerator}{2}';
+      // Check if b is divisible by denominator for simplification
+      if (bInt % denomInt == 0) {
+        // Can simplify: b/denominator becomes integer
+        final simplifiedB = bInt ~/ denomInt;
+
+        if (simplifiedB == 0) {
+          // Just the sqrt part with correct sign
+          return isPlus ? '$sqrtExpr' : '-$sqrtExpr';
+        } else if (simplifiedB == 1) {
+          // +1 * sqrt part
+          return isPlus ? '1 + $sqrtExpr' : '1 - $sqrtExpr';
+        } else if (simplifiedB == -1) {
+          // -1 * sqrt part
+          return isPlus ? '-1 + $sqrtExpr' : '-1 - $sqrtExpr';
+        } else if (simplifiedB > 0) {
+          // Positive coefficient
+          return isPlus
+              ? '$simplifiedB + $sqrtExpr'
+              : '$simplifiedB - $sqrtExpr';
+        } else {
+          // Negative coefficient
+          final absB = (-simplifiedB).toString();
+          return isPlus ? '-$absB + $sqrtExpr' : '-$absB - $sqrtExpr';
+        }
       } else {
-        return '\\frac{$numerator}{$denomStr}';
+        // Cannot simplify, use fraction form
+        final bStr = b > 0 ? '${bInt}' : '(${bInt})';
+        final signStr = isPlus ? '+' : '-';
+        final numerator = b > 0
+            ? '-$bStr $signStr $sqrtExpr'
+            : '(${bInt}) $signStr $sqrtExpr';
+
+        if (denominator == 2) {
+          return '\\frac{$numerator}{2}';
+        } else {
+          return '\\frac{$numerator}{$denomStr}';
+        }
       }
     }
   }
