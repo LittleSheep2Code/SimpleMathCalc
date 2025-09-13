@@ -88,5 +88,22 @@ void main() {
         reason: '根应该以 1 ± √2 的形式出现',
       );
     });
+
+    test('无实数解的二次方程', () {
+      final result = solver.solve('x(55-3x+2)=300');
+      debugPrint('Result for x(55-3x+2)=300: ${result.finalAnswer}');
+      // 这个方程展开后为 -3x² + 57x - 300 = 0，判别式为负数，应该无实数解
+      expect(
+        result.steps.any((step) => step.formula.contains('无实数解')),
+        true,
+        reason: '方程应该被识别为无实数解',
+      );
+      expect(
+        result.finalAnswer.contains('x_1') &&
+            result.finalAnswer.contains('x_2'),
+        true,
+        reason: '应该提供复数根',
+      );
+    });
   });
 }
