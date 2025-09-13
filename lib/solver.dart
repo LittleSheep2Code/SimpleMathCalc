@@ -63,8 +63,8 @@ class SolverService {
       ),
     );
 
-    // 预处理平方根符号
-    final processedInput = _preprocessSqrt(input);
+    // 预处理输入，将三角函数的参数从度转换为弧度
+    String processedInput = _convertTrigToRadians(input);
 
     GrammarParser p = GrammarParser();
     Expression exp = p.parse(processedInput);
@@ -431,6 +431,32 @@ ${b1}y &= ${c1 - a1 * x}
 
   /// ---- 辅助函数 ----
 
+  /// 将三角函数的参数从度转换为弧度
+  String _convertTrigToRadians(String input) {
+    String result = input;
+
+    // 正则表达式匹配三角函数调用，如 sin(30), cos(45), tan(60)
+    final trigPattern = RegExp(
+      r'(sin|cos|tan|asin|acos|atan)\s*\(\s*([^)]+)\s*\)',
+      caseSensitive: false,
+    );
+
+    result = result.replaceAllMapped(trigPattern, (match) {
+      final func = match.group(1)!;
+      final arg = match.group(2)!;
+
+      // 如果参数已经是弧度相关的表达式（包含 pi 或 π），则不转换
+      if (arg.contains('pi') || arg.contains('π') || arg.contains('rad')) {
+        return '$func($arg)';
+      }
+
+      // 将度数转换为弧度：度 * π / 180
+      return '$func(($arg)*($pi/180))';
+    });
+
+    return result;
+  }
+
   /// 将数值结果格式化为几倍根号的形式
   String _formatSqrtResult(double result) {
     // 处理负数
@@ -479,31 +505,6 @@ ${b1}y &= ${c1 - a1 * x}
         .toStringAsFixed(6)
         .replaceAll(RegExp(r'\.0+$'), '')
         .replaceAll(RegExp(r'\.$'), '');
-  }
-
-  /// 预处理平方根表示法，将 \sqrt{expr} 转换为 sqrt(expr)
-  String _preprocessSqrt(String input) {
-    // 使用正则表达式替换 \sqrt{expr} 为 sqrt(expr)
-    // 处理嵌套的情况，使用循环直到没有更多匹配
-    String result = input;
-    int maxIterations = 10; // 防止无限循环
-    int iterationCount = 0;
-
-    while (iterationCount < maxIterations) {
-      String oldResult = result;
-      result = result.replaceAllMapped(
-        RegExp(r'\\sqrt\{([^}]+)\}'),
-        (match) => 'sqrt(${match.group(1)})',
-      );
-      if (result == oldResult) break;
-      iterationCount++;
-    }
-
-    if (iterationCount >= maxIterations) {
-      throw Exception('平方根表达式过于复杂，请简化输入。');
-    }
-
-    return result;
   }
 
   String _expandExpressions(String input) {
