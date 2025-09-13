@@ -287,7 +287,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                     message: '平方',
                     child: FilledButton.tonal(
                       onPressed: () => _insertSymbol('^2'),
-                      child: Text('^2', style: GoogleFonts.robotoMono()),
+                      child: Text('²', style: GoogleFonts.robotoMono()),
                     ),
                   ),
                 ),

@@ -406,7 +406,10 @@ ${b1}y &= ${c1 - a1 * x}
 
   String _expandExpressions(String input) {
     String result = input;
-    while (true) {
+    int maxIterations = 10; // Prevent infinite loops
+    int iterationCount = 0;
+
+    while (iterationCount < maxIterations) {
       String oldResult = result;
 
       final powerMatch = RegExp(
@@ -431,6 +434,7 @@ ${b1}y &= ${c1 - a1 * x}
         final expanded =
             '${newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
         result = result.replaceFirst(powerMatch.group(0)!, '($expanded)');
+        iterationCount++;
         continue;
       }
 
@@ -455,11 +459,53 @@ ${b1}y &= ${c1 - a1 * x}
         final expanded =
             '${newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
         result = result.replaceFirst(factorMulMatch.group(0)!, '($expanded)');
+        iterationCount++;
+        continue;
+      }
+
+      // Handle expressions like x(expr) or (expr)x or coeff(expr)
+      final termFactorMatch = RegExp(
+        r'([+-]?(?:\d*\.?\d*)?x?)\(([^)]+)\)',
+      ).firstMatch(result);
+      if (termFactorMatch != null) {
+        final termStr = termFactorMatch.group(1)!;
+        final factorStr = termFactorMatch.group(2)!;
+
+        // Skip if the term is just a sign or empty
+        if (termStr == '+' || termStr == '-' || termStr.isEmpty) {
+          break;
+        }
+
+        // Parse the term (coefficient and x power)
+        final termCoeffs = _parsePolynomial(termStr);
+        final factorCoeffs = _parsePolynomial(factorStr);
+
+        final termA = termCoeffs[1] ?? 0; // x coefficient
+        final termB = termCoeffs[0] ?? 0; // constant term
+
+        final factorA = factorCoeffs[1] ?? 0; // x coefficient
+        final factorB = factorCoeffs[0] ?? 0; // constant term
+
+        // Multiply: (termA*x + termB) * (factorA*x + factorB)
+        final newA = termA * factorA;
+        final newB = termA * factorB + termB * factorA;
+        final newC = termB * factorB;
+
+        final expanded =
+            '${newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
+        result = result.replaceFirst(termFactorMatch.group(0)!, '($expanded)');
+        iterationCount++;
         continue;
       }
 
       if (result == oldResult) break;
+      iterationCount++;
     }
+
+    if (iterationCount >= maxIterations) {
+      throw Exception('表达式展开过于复杂，请简化输入。');
+    }
+
     return result;
   }
 
