@@ -54,5 +54,39 @@ void main() {
         true,
       );
     });
+
+    test('二次方程根的简化', () {
+      final result = solver.solve('x^2 - 4x - 5 = 0');
+      debugPrint('Result for x^2 - 4x - 5 = 0: ${result.finalAnswer}');
+      // 这个方程的根应该是 x = (4 ± √(16 + 20))/2 = (4 ± √36)/2 = (4 ± 6)/2
+      // 所以 x1 = (4 + 6)/2 = 5, x2 = (4 - 6)/2 = -1
+      expect(
+        (result.finalAnswer.contains('x_1 = 5') &&
+                result.finalAnswer.contains('x_2 = -1')) ||
+            (result.finalAnswer.contains('x_1 = -1') &&
+                result.finalAnswer.contains('x_2 = 5')),
+        true,
+        reason: '方程 x^2 - 4x - 5 = 0 的根应该被正确简化',
+      );
+    });
+
+    test('二次方程精确度改进', () {
+      final result = solver.solve('x^2 - 2x - 1 = 0');
+      debugPrint('Result for x^2 - 2x - 1 = 0: ${result.finalAnswer}');
+      // 这个方程的根应该是 x = (2 ± √(4 + 4))/2 = (2 ± √8)/2 = (2 ± 2√2)/2 = 1 ± √2
+      // 验证结果包含正确的根格式
+      expect(
+        result.finalAnswer.contains('x_1') &&
+            result.finalAnswer.contains('x_2'),
+        true,
+        reason: '方程应该有两个根',
+      );
+      expect(
+        result.finalAnswer.contains('1 +') ||
+            result.finalAnswer.contains('1 -'),
+        true,
+        reason: '根应该以 1 ± √2 的形式出现',
+      );
+    });
   });
 }
