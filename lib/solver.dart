@@ -59,15 +59,24 @@ class SolverService {
         stepNumber: 1,
         title: '表达式求值',
         explanation: '这是一个标准的数学表达式，我们将直接计算其结果。',
-        formula: input,
+        formula: '\$\$$input\$\$',
       ),
     );
 
-    GrammarParser p = GrammarParser();
-    Expression exp = p.parse(input);
-    final result = RealEvaluator().evaluate(exp);
+    // 预处理平方根符号
+    final processedInput = _preprocessSqrt(input);
 
-    return CalculationResult(steps: steps, finalAnswer: result.toString());
+    GrammarParser p = GrammarParser();
+    Expression exp = p.parse(processedInput);
+    final result = RealEvaluator().evaluate(exp).toDouble();
+
+    // 尝试将结果格式化为几倍根号的形式
+    final formattedResult = _formatSqrtResult(result);
+
+    return CalculationResult(
+      steps: steps,
+      finalAnswer: '\$\$$formattedResult\$\$',
+    );
   }
 
   /// 2. 求解一元一次方程
@@ -422,6 +431,81 @@ ${b1}y &= ${c1 - a1 * x}
 
   /// ---- 辅助函数 ----
 
+  /// 将数值结果格式化为几倍根号的形式
+  String _formatSqrtResult(double result) {
+    // 处理负数
+    if (result < 0) {
+      return '-${_formatSqrtResult(-result)}';
+    }
+
+    // 处理零
+    if (result == 0) return '0';
+
+    // 检查是否接近整数
+    final rounded = result.round();
+    if ((result - rounded).abs() < 1e-10) {
+      return rounded.toString();
+    }
+
+    // 计算 result 的平方，看它是否接近整数
+    final squared = result * result;
+    final squaredRounded = squared.round();
+
+    // 如果 squared 接近整数，说明 result 是某个数的平方根
+    if ((squared - squaredRounded).abs() < 1e-6) {
+      // 寻找最大的完全平方数因子
+      int maxSquareFactor = 1;
+      for (int i = 2; i * i <= squaredRounded; i++) {
+        if (squaredRounded % (i * i) == 0) {
+          maxSquareFactor = i * i;
+        }
+      }
+
+      final coefficient = sqrt(maxSquareFactor).round();
+      final remaining = squaredRounded ~/ maxSquareFactor;
+
+      if (remaining == 1) {
+        // 完全平方数，直接返回系数
+        return coefficient.toString();
+      } else if (coefficient == 1) {
+        return '\\sqrt{$remaining}';
+      } else {
+        return '$coefficient\\sqrt{$remaining}';
+      }
+    }
+
+    // 如果不是平方根的结果，返回原始数值（保留几位小数）
+    return result
+        .toStringAsFixed(6)
+        .replaceAll(RegExp(r'\.0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
+  }
+
+  /// 预处理平方根表示法，将 \sqrt{expr} 转换为 sqrt(expr)
+  String _preprocessSqrt(String input) {
+    // 使用正则表达式替换 \sqrt{expr} 为 sqrt(expr)
+    // 处理嵌套的情况，使用循环直到没有更多匹配
+    String result = input;
+    int maxIterations = 10; // 防止无限循环
+    int iterationCount = 0;
+
+    while (iterationCount < maxIterations) {
+      String oldResult = result;
+      result = result.replaceAllMapped(
+        RegExp(r'\\sqrt\{([^}]+)\}'),
+        (match) => 'sqrt(${match.group(1)})',
+      );
+      if (result == oldResult) break;
+      iterationCount++;
+    }
+
+    if (iterationCount >= maxIterations) {
+      throw Exception('平方根表达式过于复杂，请简化输入。');
+    }
+
+    return result;
+  }
+
   String _expandExpressions(String input) {
     String result = input;
     int maxIterations = 10; // Prevent infinite loops
@@ -544,27 +628,66 @@ ${b1}y &= ${c1 - a1 * x}
 
   Map<int, double> _parsePolynomial(String side) {
     final coeffs = <int, double>{};
+    // 扩展模式以支持 sqrt 函数
     final pattern = RegExp(
-      r'([+-]?(?:\d*\.?\d*)?)x(?:\^(\d+))?|([+-]?\d*\.?\d+)',
+      r'([+-]?(?:\d*\.?\d*|sqrt\(\d+\)))x(?:\^(\d+))?|([+-]?(?:\d*\.?\d*|sqrt\(\d+\)))',
     );
     var s = side.startsWith('+') || side.startsWith('-') ? side : '+$side';
 
     for (final match in pattern.allMatches(s)) {
       if (match.group(3) != null) {
-        coeffs[0] = (coeffs[0] ?? 0) + double.parse(match.group(3)!);
+        // 常数项
+        final constStr = match.group(3)!;
+        final constValue = _parseCoefficientWithSqrt(constStr);
+        coeffs[0] = (coeffs[0] ?? 0) + constValue;
       } else {
+        // x 的幂次项
         int power = match.group(2) != null ? int.parse(match.group(2)!) : 1;
         String coeffStr = match.group(1) ?? '+';
-        double coeff = 1.0;
-        if (coeffStr.isNotEmpty && coeffStr != '+') {
-          coeff = coeffStr == '-' ? -1.0 : double.parse(coeffStr);
-        } else if (coeffStr == '-') {
-          coeff = -1.0;
-        }
+        final coeff = _parseCoefficientWithSqrt(coeffStr);
         coeffs[power] = (coeffs[power] ?? 0) + coeff;
       }
     }
     return coeffs;
+  }
+
+  /// 解析包含 sqrt 函数的系数
+  double _parseCoefficientWithSqrt(String coeffStr) {
+    if (coeffStr.isEmpty || coeffStr == '+') return 1.0;
+    if (coeffStr == '-') return -1.0;
+
+    // 检查是否包含 sqrt 函数
+    final sqrtMatch = RegExp(r'sqrt\((\d+)\)').firstMatch(coeffStr);
+    if (sqrtMatch != null) {
+      final innerValue = int.parse(sqrtMatch.group(1)!);
+
+      // 对于完全平方数，直接返回整数结果
+      final sqrtValue = sqrt(innerValue.toDouble());
+      final rounded = sqrtValue.round();
+      if ((sqrtValue - rounded).abs() < 1e-10) {
+        // 检查是否有系数
+        final coeffPart = coeffStr.replaceFirst(sqrtMatch.group(0)!, '');
+        if (coeffPart.isEmpty) return rounded.toDouble();
+        if (coeffPart == '-') return -rounded.toDouble();
+
+        final coeff = double.parse(coeffPart);
+        return coeff * rounded;
+      }
+
+      // 对于非完全平方数，计算数值但保持高精度
+      final nonPerfectSqrtValue = sqrt(innerValue.toDouble());
+
+      // 检查是否有系数
+      final coeffPart = coeffStr.replaceFirst(sqrtMatch.group(0)!, '');
+      if (coeffPart.isEmpty) return nonPerfectSqrtValue;
+      if (coeffPart == '-') return -nonPerfectSqrtValue;
+
+      final coeff = double.parse(coeffPart);
+      return coeff * nonPerfectSqrtValue;
+    }
+
+    // 普通数值
+    return double.parse(coeffStr);
   }
 
   List<double> _parseTwoVariableLinear(String equation) {
