@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latext/latext.dart';
@@ -104,7 +105,12 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                       floatingLabelAlignment: FloatingLabelAlignment.center,
                       hintText: '例如: 2x^2 - 8x + 6 = 0',
                     ),
-                    keyboardType: TextInputType.number,
+                    keyboardType: kIsWeb
+                        ? TextInputType.numberWithOptions(
+                            signed: true,
+                            decimal: true,
+                          )
+                        : TextInputType.number,
                     onSubmitted: (_) => _solveEquation(),
                   ),
                 ),
@@ -241,13 +247,13 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
     return Material(
       elevation: 8,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              spacing: 16,
+              spacing: 8,
               children: [
                 Expanded(
                   child: Tooltip(
@@ -299,7 +305,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              spacing: 16,
+              spacing: 8,
               children: [
                 Expanded(
                   child: Tooltip(
@@ -357,18 +363,19 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.keyboard_hide),
-                    onPressed: () => _focusNode.unfocus(),
-                    label: Text('收起键盘'),
+            if (!kIsWeb) const SizedBox(height: 8),
+            if (!kIsWeb)
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.keyboard_hide),
+                      onPressed: () => _focusNode.unfocus(),
+                      label: Text('收起键盘'),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
           ],
         ),
       ),
