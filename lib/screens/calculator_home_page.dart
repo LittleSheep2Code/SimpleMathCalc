@@ -300,6 +300,15 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                     ),
                   ),
                 ),
+                Expanded(
+                  child: Tooltip(
+                    message: '未知数二号',
+                    child: FilledButton.tonal(
+                      onPressed: () => _insertSymbol('y'),
+                      child: Text('y', style: GoogleFonts.robotoMono()),
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),

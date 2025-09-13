@@ -529,13 +529,29 @@ ${b1}y &= ${c1 - a1 * x}
   ({String formula, String solution})? _tryFactorization(int a, int b, int c) {
     if (a == 0) return null;
     int ac = a * c;
-    for (int i = 1; i <= sqrt(ac.abs()); i++) {
-      if (ac % i == 0) {
-        int j = ac ~/ i;
-        if (check(i, j, b)) return formatFactor(i, j, a);
-        if (check(-i, -j, b)) return formatFactor(-i, -j, a);
-        if (check(i, -j, b)) return formatFactor(i, -j, a);
-        if (check(-i, j, b)) return formatFactor(-i, j, a);
+    int absAc = ac.abs();
+    for (int d = 1; d <= sqrt(absAc).toInt(); d++) {
+      if (absAc % d == 0) {
+        int d1 = d;
+        int d2 = absAc ~/ d;
+        List<int> signs1 = ac >= 0 ? [1, -1] : [1, -1];
+        List<int> signs2 = ac >= 0 ? [1, -1] : [1, -1];
+        for (int s1 in signs1) {
+          for (int s2 in signs2) {
+            int m = s1 * d1;
+            int n = s2 * d2;
+            if (check(m, n, b)) return formatFactor(m, n, a);
+            m = s1 * d1;
+            n = s2 * (-d2);
+            if (check(m, n, b)) return formatFactor(m, n, a);
+            m = s1 * (-d1);
+            n = s2 * d2;
+            if (check(m, n, b)) return formatFactor(m, n, a);
+            m = s1 * (-d1);
+            n = s2 * (-d2);
+            if (check(m, n, b)) return formatFactor(m, n, a);
+          }
+        }
       }
     }
     return null;
@@ -544,32 +560,41 @@ ${b1}y &= ${c1 - a1 * x}
   bool check(int m, int n, int b) => m + n == b;
 
   ({String formula, String solution}) formatFactor(int m, int n, int a) {
-    int common = gcd(n.abs(), a.abs());
-    int num = n ~/ common;
-    int den = a ~/ common;
+    // Roots are -m/a and -n/a
+    int g1 = gcd(m.abs(), a.abs());
+    int root1Num = -m ~/ g1;
+    int root1Den = a ~/ g1;
 
-    final a1 = den;
-    final c1 = num;
-    final a2 = a ~/ den;
-    final c2 = m ~/ a2;
+    int g2 = gcd(n.abs(), a.abs());
+    int root2Num = -n ~/ g2;
+    int root2Den = a ~/ g2;
 
-    final f1Part1 = a1 == 1 ? 'x' : '${a1}x';
-    final f1 = c1 == 0 ? f1Part1 : '$f1Part1 ${c1 >= 0 ? '+' : ''} $c1';
+    String sol1 = root1Den == 1 ? '$root1Num' : '\\frac{$root1Num}{$root1Den}';
+    String sol2 = root2Den == 1 ? '$root2Num' : '\\frac{$root2Num}{$root2Den}';
 
-    final f2Part1 = a2 == 1 ? 'x' : '${a2}x';
-    final f2 = c2 == 0 ? f2Part1 : '$f2Part1 ${c2 >= 0 ? '+' : ''} $c2';
+    // For formula, show (a x + m)(x + n/a) or simplified
+    String f1 = a == 1 ? 'x' : '${a}x';
+    f1 = m == 0 ? f1 : '$f1 ${m >= 0 ? '+' : ''} $m';
 
-    final int x1Num = -c1, x1Den = a1;
-    final int x2Num = -c2, x2Den = a2;
+    String f2;
+    if (n % a == 0) {
+      int coeff = n ~/ a;
+      f2 = 'x ${coeff >= 0 ? '+' : ''} $coeff';
+      if (coeff == 0) f2 = 'x';
+    } else {
+      f2 = 'x ${n >= 0 ? '+' : ''} \\frac{$n}{$a}';
+    }
 
-    final sol1 = x1Den == 1 ? '$x1Num' : '\\frac{$x1Num}{$x1Den}';
-    final sol2 = x2Den == 1 ? '$x2Num' : '\\frac{$x2Num}{$x2Den}';
+    String formula = '\$\$($f1)($f2) = 0\$\$';
 
-    final solution = x1Num * x2Den == x2Num * x1Den
-        ? 'x_1 = x_2 = $sol1'
-        : 'x_1 = $sol1, \\quad x_2 = $sol2';
+    String solution;
+    if (root1Num * root2Den == root2Num * root1Den) {
+      solution = '\$\$x_1 = x_2 = $sol1\$\$';
+    } else {
+      solution = '\$\$x_1 = $sol1, \\quad x_2 = $sol2\$\$';
+    }
 
-    return (formula: '\$\$($f1)($f2) = 0\$\$', solution: '\$\$$solution\$\$');
+    return (formula: formula, solution: solution);
   }
 
   int gcd(int a, int b) => b == 0 ? a : gcd(b, a % b);
