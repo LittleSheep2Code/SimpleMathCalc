@@ -39,6 +39,7 @@ dependencies:
   google_fonts: ^6.3.1
   go_router: ^14.2.0
   url_launcher: ^6.3.0
+  rational: ^2.2.3
 
 dev_dependencies:
   flutter_test:

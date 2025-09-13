@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart'; // For kDebugMode
 import 'package:math_expressions/math_expressions.dart';
+import 'package:rational/rational.dart';
 import 'models/calculation_step.dart';
 
 /// 帮助解析一元一次方程 ax+b=cx+d 的辅助类
@@ -103,8 +104,8 @@ class SolverService {
     final parts = _parseLinearEquation(input);
     final a = parts.a, b = parts.b, c = parts.c, d = parts.d;
 
-    final newA = a - c;
-    final newD = d - b;
+    final newA = _rationalFromDouble(a) - _rationalFromDouble(c);
+    final newD = _rationalFromDouble(d) - _rationalFromDouble(b);
 
     steps.add(
       CalculationStep(
@@ -121,14 +122,15 @@ class SolverService {
         stepNumber: 2,
         title: '合并同类项',
         explanation: '合并等式两边的项。',
-        formula: '\$\$${newA}x = $newD\$\$',
+        formula:
+            '\$\$${newA.toDouble().toStringAsFixed(4)}x = ${newD.toDouble().toStringAsFixed(4)}\$\$',
       ),
     );
 
-    if (newA == 0) {
+    if (newA == Rational.zero) {
       return CalculationResult(
         steps: steps,
-        finalAnswer: newD == 0 ? '有无穷多解' : '无解',
+        finalAnswer: newD == Rational.zero ? '有无穷多解' : '无解',
       );
     }
 
@@ -152,9 +154,29 @@ class SolverService {
     final eqParts = input.split('=');
     if (eqParts.length != 2) throw Exception("方程格式错误，应包含一个 '='。");
 
+    // Keep original equation for display
+    final originalEquation = _formatOriginalEquation(input);
+
+    // Parse coefficients symbolically
+    final leftCoeffsSymbolic = _parsePolynomialSymbolic(eqParts[0]);
+    final rightCoeffsSymbolic = _parsePolynomialSymbolic(eqParts[1]);
+
+    final aSymbolic = _subtractCoefficients(
+      leftCoeffsSymbolic[2] ?? '0',
+      rightCoeffsSymbolic[2] ?? '0',
+    );
+    final bSymbolic = _subtractCoefficients(
+      leftCoeffsSymbolic[1] ?? '0',
+      rightCoeffsSymbolic[1] ?? '0',
+    );
+    final cSymbolic = _subtractCoefficients(
+      leftCoeffsSymbolic[0] ?? '0',
+      rightCoeffsSymbolic[0] ?? '0',
+    );
+
+    // Also get numeric values for calculations
     final leftCoeffs = _parsePolynomial(eqParts[0]);
     final rightCoeffs = _parsePolynomial(eqParts[1]);
-
     final a = (leftCoeffs[2] ?? 0) - (rightCoeffs[2] ?? 0);
     final b = (leftCoeffs[1] ?? 0) - (rightCoeffs[1] ?? 0);
     final c = (leftCoeffs[0] ?? 0) - (rightCoeffs[0] ?? 0);
@@ -168,8 +190,7 @@ class SolverService {
         stepNumber: 1,
         title: '整理方程',
         explanation: r'将方程整理成标准形式 $ax^2+bx+c=0$。',
-        formula:
-            '\$\$${a}x^2 ${b >= 0 ? '+' : ''} ${b}x ${c >= 0 ? '+' : ''} $c = 0\$\$',
+        formula: originalEquation,
       ),
     );
 
@@ -213,36 +234,47 @@ class SolverService {
       ),
     );
 
-    final delta = b * b - 4 * a * c;
+    // Calculate delta symbolically
+    final deltaSymbolic = _calculateDeltaSymbolic(
+      aSymbolic,
+      bSymbolic,
+      cSymbolic,
+    );
+    final delta =
+        _rationalFromDouble(b).pow(2) -
+        Rational.fromInt(4) * _rationalFromDouble(a) * _rationalFromDouble(c);
+
     steps.add(
       CalculationStep(
         stepNumber: 3,
         title: '计算判别式 (Delta)',
-        explanation:
-            '\$\$\\Delta = b^2 - 4ac = ($b)^2 - 4 \\cdot ($a) \\cdot ($c) = $delta\$\$',
-        formula: '\$\$\\Delta = $delta\$\$',
+        explanation: '\$\$\\Delta = b^2 - 4ac = $deltaSymbolic\$\$',
+        formula:
+            '\$\$\\Delta = $deltaSymbolic = ${delta.toDouble().toStringAsFixed(4)}\$\$',
       ),
     );
 
-    if (delta > 0) {
-      final x1 = (-b + sqrt(delta)) / (2 * a);
-      final x2 = (-b - sqrt(delta)) / (2 * a);
+    final deltaDouble = delta.toDouble();
+    if (deltaDouble > 0) {
+      // Keep sqrt symbolic instead of evaluating to decimal
+      final sqrtDeltaStr = _formatSqrtExpression(delta.toDouble());
+      final x1Expr = _formatQuadraticRoot(-b, sqrtDeltaStr, 2 * a, true);
+      final x2Expr = _formatQuadraticRoot(-b, sqrtDeltaStr, 2 * a, false);
+
       steps.add(
         CalculationStep(
           stepNumber: 4,
           title: '应用求根公式',
           explanation:
               r'因为 $\Delta > 0$，方程有两个不相等的实数根。公式: $x = \frac{-b \pm \sqrt{\Delta}}{2a}$。',
-          formula:
-              '\$\$x_1 = ${x1.toStringAsFixed(4)}, \\quad x_2 = ${x2.toStringAsFixed(4)}\$\$',
+          formula: '\$\$x_1 = $x1Expr, \\quad x_2 = $x2Expr\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
-        finalAnswer:
-            '\$\$x_1 = ${x1.toStringAsFixed(4)}, \\quad x_2 = ${x2.toStringAsFixed(4)}\$\$',
+        finalAnswer: '\$\$x_1 = $x1Expr, \\quad x_2 = $x2Expr\$\$',
       );
-    } else if (delta == 0) {
+    } else if (deltaDouble == 0) {
       final x = -b / (2 * a);
       steps.add(
         CalculationStep(
@@ -266,9 +298,10 @@ class SolverService {
         ),
       );
 
-      final sqrtDelta = sqrt(-delta);
+      // Keep sqrt symbolic for complex roots
+      final sqrtNegDeltaStr = _formatSqrtExpression(-delta.toDouble());
       final realPart = -b / (2 * a);
-      final imagPart = sqrtDelta / (2 * a);
+      final imagPartExpr = _formatImaginaryPart(sqrtNegDeltaStr, 2 * a);
 
       steps.add(
         CalculationStep(
@@ -282,7 +315,7 @@ class SolverService {
       return CalculationResult(
         steps: steps,
         finalAnswer:
-            '\$\$x_1 = ${realPart.toStringAsFixed(4)} + ${imagPart.toStringAsFixed(4)}i, \\quad x_2 = ${realPart.toStringAsFixed(4)} - ${imagPart.toStringAsFixed(4)}i\$\$',
+            '\$\$x_1 = ${realPart.toStringAsFixed(4)} + $imagPartExpr, \\quad x_2 = ${realPart.toStringAsFixed(4)} - $imagPartExpr\$\$',
       );
     }
   }
@@ -316,16 +349,23 @@ ${a2}x ${b2 >= 0 ? '+' : ''} ${b2}y = $c2 & (2)
       ),
     );
 
-    final det = a1 * b2 - a2 * b1;
-    if (det == 0) {
+    final det =
+        _rationalFromDouble(a1) * _rationalFromDouble(b2) -
+        _rationalFromDouble(a2) * _rationalFromDouble(b1);
+    if (det == Rational.zero) {
+      final infiniteCheck =
+          _rationalFromDouble(a1) * _rationalFromDouble(c2) -
+          _rationalFromDouble(a2) * _rationalFromDouble(c1);
       return CalculationResult(
         steps: steps,
-        finalAnswer: a1 * c2 - a2 * c1 == 0 ? '有无穷多解' : '无解',
+        finalAnswer: infiniteCheck == Rational.zero ? '有无穷多解' : '无解',
       );
     }
 
-    final newA1 = a1 * b2, newC1 = c1 * b2;
-    final newA2 = a2 * b1, newC2 = c2 * b1;
+    final newA1 = _rationalFromDouble(a1) * _rationalFromDouble(b2);
+    final newC1 = _rationalFromDouble(c1) * _rationalFromDouble(b2);
+    final newA2 = _rationalFromDouble(a2) * _rationalFromDouble(b1);
+    final newC2 = _rationalFromDouble(c2) * _rationalFromDouble(b1);
 
     steps.add(
       CalculationStep(
@@ -336,8 +376,8 @@ ${a2}x ${b2 >= 0 ? '+' : ''} ${b2}y = $c2 & (2)
             '''
 \$\$
 \\begin{cases}
-${newA1}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC1 & (3) \\\\
-${newA2}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC2 & (4)
+${newA1.toDouble().toStringAsFixed(2)}x ${b1 * b2 >= 0 ? '+' : ''} ${(b1 * b2).toStringAsFixed(2)}y = ${newC1.toDouble().toStringAsFixed(2)} & (3) \\\\
+${newA2.toDouble().toStringAsFixed(2)}x ${b1 * b2 >= 0 ? '+' : ''} ${(b1 * b2).toStringAsFixed(2)}y = ${newC2.toDouble().toStringAsFixed(2)} & (4)
 \\end{cases}
 \$\$
 ''',
@@ -353,7 +393,7 @@ ${newA2}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC2 & (4)
         title: '相减',
         explanation: '将方程(3)减去方程(4)，得到一个只含 x 的方程。',
         formula:
-            '\$\$($newA1 - $newA2)x = $newC1 - $newC2 \\Rightarrow ${xCoeff}x = $constCoeff\$\$',
+            '\$\$(${newA1.toDouble().toStringAsFixed(2)} - ${newA2.toDouble().toStringAsFixed(2)})x = ${newC1.toDouble().toStringAsFixed(2)} - ${newC2.toDouble().toStringAsFixed(2)} \\Rightarrow ${xCoeff.toDouble().toStringAsFixed(2)}x = ${constCoeff.toDouble().toStringAsFixed(2)}\$\$',
       ),
     );
 
@@ -369,21 +409,21 @@ ${newA2}x ${b1 * b2 >= 0 ? '+' : ''} ${b1 * b2}y = $newC2 & (4)
 
     if (b1.abs() < 1e-9) {
       final yCoeff = b2;
-      final yConst = c2 - a2 * x;
+      final yConst = c2 - a2 * x.toDouble();
       final y = yConst / yCoeff;
       steps.add(
         CalculationStep(
           stepNumber: 4,
           title: '回代求解 y',
-          explanation: '将 x = $x 代入原方程(2)中。',
+          explanation: '将 x = ${x.toDouble().toStringAsFixed(4)} 代入原方程(2)中。',
           formula:
               '''
 \$\$
 \\begin{aligned}
-$a2($x) + ${b2}y &= $c2 \\\\
-${a2 * x} + ${b2}y &= $c2 \\\\
-${b2}y &= $c2 - ${a2 * x} \\\\
-${b2}y &= ${c2 - a2 * x}
+$a2(${x.toDouble().toStringAsFixed(4)}) + ${b2}y &= $c2 \\\\
+${a2 * x.toDouble()} + ${b2}y &= $c2 \\\\
+${b2}y &= $c2 - ${a2 * x.toDouble()} \\\\
+${b2}y &= ${c2 - a2 * x.toDouble()}
 \\end{aligned}
 \$\$
 ''',
@@ -394,30 +434,31 @@ ${b2}y &= ${c2 - a2 * x}
           stepNumber: 5,
           title: '解出 y',
           explanation: '求解得到 y 的值。',
-          formula: '\$\$y = $y\$\$',
+          formula: '\$\$y = ${y.toStringAsFixed(4)}\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
-        finalAnswer: '\$\$x = $x, \\quad y = $y\$\$',
+        finalAnswer:
+            '\$\$x = ${x.toDouble().toStringAsFixed(4)}, \\quad y = ${y.toStringAsFixed(4)}\$\$',
       );
     } else {
       final yCoeff = b1;
-      final yConst = c1 - a1 * x;
+      final yConst = c1 - a1 * x.toDouble();
       final y = yConst / yCoeff;
       steps.add(
         CalculationStep(
           stepNumber: 4,
           title: '回代求解 y',
-          explanation: '将 x = $x 代入原方程(1)中。',
+          explanation: '将 x = ${x.toDouble().toStringAsFixed(4)} 代入原方程(1)中。',
           formula:
               '''
 \$\$
 \\begin{aligned}
-$a1($x) + ${b1}y &= $c1 \\\\
-${a1 * x} + ${b1}y &= $c1 \\\\
-${b1}y &= $c1 - ${a1 * x} \\\\
-${b1}y &= ${c1 - a1 * x}
+$a1(${x.toDouble().toStringAsFixed(4)}) + ${b1}y &= $c1 \\\\
+${a1 * x.toDouble()} + ${b1}y &= $c1 \\\\
+${b1}y &= $c1 - ${a1 * x.toDouble()} \\\\
+${b1}y &= ${c1 - a1 * x.toDouble()}
 \\end{aligned}
 \$\$
 ''',
@@ -428,12 +469,13 @@ ${b1}y &= ${c1 - a1 * x}
           stepNumber: 5,
           title: '解出 y',
           explanation: '求解得到 y 的值。',
-          formula: '\$\$y = $y\$\$',
+          formula: '\$\$y = ${y.toStringAsFixed(4)}\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
-        finalAnswer: '\$\$x = $x, \\quad y = $y\$\$',
+        finalAnswer:
+            '\$\$x = ${x.toDouble().toStringAsFixed(4)}, \\quad y = ${y.toStringAsFixed(4)}\$\$',
       );
     }
   }
@@ -940,4 +982,331 @@ ${b1}y &= ${c1 - a1 * x}
   }
 
   int gcd(int a, int b) => b == 0 ? a : gcd(b, a % b);
+
+  /// 格式化平方根表达式，保持符号形式
+  String _formatSqrtExpression(double value) {
+    if (value == 0) return '0';
+
+    // 处理负数（用于复数根）
+    if (value < 0) {
+      return '\\sqrt{${(-value).toInt()}}';
+    }
+
+    // 检查是否为完全平方数
+    final sqrtValue = sqrt(value);
+    final rounded = sqrtValue.round();
+    if ((sqrtValue - rounded).abs() < 1e-10) {
+      return rounded.toString();
+    }
+
+    // 寻找最大的完全平方数因子
+    int maxSquareFactor = 1;
+    int intValue = value.toInt();
+    for (int i = 2; i * i <= intValue; i++) {
+      if (intValue % (i * i) == 0) {
+        maxSquareFactor = i * i;
+      }
+    }
+
+    final coefficient = sqrt(maxSquareFactor).round();
+    final remaining = intValue ~/ maxSquareFactor;
+
+    if (remaining == 1) {
+      return coefficient == 1
+          ? '\\sqrt{$intValue}'
+          : '$coefficient\\sqrt{$remaining}';
+    } else if (coefficient == 1) {
+      return '\\sqrt{$remaining}';
+    } else {
+      return '$coefficient\\sqrt{$remaining}';
+    }
+  }
+
+  /// 格式化二次方程的根：(-b ± sqrt(delta)) / (2a)
+  String _formatQuadraticRoot(
+    double b,
+    String sqrtExpr,
+    double denominator,
+    bool isPlus,
+  ) {
+    final sign = isPlus ? '+' : '-';
+    final bStr = b == 0
+        ? ''
+        : b > 0
+        ? '${b.toInt()}'
+        : '(${b.toInt()})';
+    final denomStr = denominator == 2 ? '2' : denominator.toString();
+
+    if (b == 0) {
+      // 简化为 ±sqrt(delta)/denominator
+      if (denominator == 2) {
+        return isPlus
+            ? '\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{2}'
+            : '-\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{2}';
+      } else {
+        return isPlus
+            ? '\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{$denomStr}'
+            : '-\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{$denomStr}';
+      }
+    } else {
+      // 完整的表达式：(-b ± sqrt(delta))/denominator
+      final numerator = b > 0
+          ? '-$bStr $sign \\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}'
+          : '(${b.toInt()}) $sign \\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}';
+
+      if (denominator == 2) {
+        return '\\frac{$numerator}{2}';
+      } else {
+        return '\\frac{$numerator}{$denomStr}';
+      }
+    }
+  }
+
+  /// 格式化复数根的虚部：sqrt(-delta)/(2a)
+  String _formatImaginaryPart(String sqrtExpr, double denominator) {
+    final denomStr = denominator == 2 ? '2' : denominator.toString();
+
+    if (denominator == 2) {
+      return '\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{2}i';
+    } else {
+      return '\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{$denomStr}i';
+    }
+  }
+
+  /// 格式化原始方程，保持符号形式
+  String _formatOriginalEquation(String input) {
+    // Simply return the original equation with proper LaTeX formatting
+    // This avoids complex parsing issues and preserves the original symbolic form
+    String result = input.replaceAll(' ', '');
+
+    // 确保方程格式正确
+    if (!result.contains('=')) {
+      result = '$result=0';
+    }
+
+    // Replace sqrt with LaTeX format
+    result = result.replaceAll('sqrt(', '\\sqrt{');
+    result = result.replaceAll(')', '}');
+
+    return '\$\$$result\$\$';
+  }
+
+  /// 解析多项式，保持符号形式
+  Map<int, String> _parsePolynomialSymbolic(String side) {
+    final coeffs = <int, String>{};
+
+    // Use a simpler approach: split by terms and parse each term individually
+    var s = side.replaceAll(' ', ''); // Remove spaces
+    if (!s.startsWith('+') && !s.startsWith('-')) {
+      s = '+$s';
+    }
+
+    // Split by + and - but be more careful about parentheses and functions
+    final terms = <String>[];
+    int start = 0;
+    int parenDepth = 0;
+
+    for (int i = 0; i < s.length; i++) {
+      final char = s[i];
+
+      if (char == '(')
+        parenDepth++;
+      else if (char == ')')
+        parenDepth--;
+
+      // Only split on + or - when not inside parentheses
+      if (parenDepth == 0 && (char == '+' || char == '-') && i > start) {
+        terms.add(s.substring(start, i));
+        start = i;
+      }
+    }
+    terms.add(s.substring(start));
+
+    for (final term in terms) {
+      if (term.isEmpty) continue;
+
+      // Parse each term
+      final termPattern = RegExp(r'^([+-]?)(.*?)x(?:\^(\d+))?$|^([+-]?)(.*?)$');
+      final match = termPattern.firstMatch(term);
+
+      if (match != null) {
+        if (match.group(5) != null) {
+          // Constant term
+          final sign = match.group(4) ?? '+';
+          final value = match.group(5)!;
+          final coeffStr = sign == '+' && value.isNotEmpty
+              ? value
+              : '$sign$value';
+          coeffs[0] = _combineCoefficients(coeffs[0], coeffStr);
+        } else {
+          // x term
+          final sign = match.group(1) ?? '+';
+          final coeffPart = match.group(2) ?? '';
+          final power = match.group(3) != null ? int.parse(match.group(3)!) : 1;
+
+          String coeffStr;
+          if (coeffPart.isEmpty) {
+            coeffStr = sign == '+' ? '1' : '-1';
+          } else {
+            coeffStr = sign == '+' ? coeffPart : '$sign$coeffPart';
+          }
+
+          coeffs[power] = _combineCoefficients(coeffs[power], coeffStr);
+        }
+      }
+    }
+
+    return coeffs;
+  }
+
+  /// 规范化系数字符串
+  String _normalizeCoefficientString(String coeff) {
+    if (coeff.isEmpty || coeff == '+') return '1';
+    if (coeff == '-') return '-1';
+
+    // 处理类似 "2sqrt(3)" 的情况
+    coeff = coeff.replaceAll(' ', ''); // 移除空格
+
+    // 检查是否是纯数字
+    final numValue = double.tryParse(coeff);
+    if (numValue != null) {
+      return coeff;
+    }
+
+    // 检查是否包含 sqrt
+    if (coeff.contains('sqrt(') || coeff.contains('\\sqrt{')) {
+      // 如果前面没有数字系数，默认为 1
+      if (coeff.startsWith('sqrt(') || coeff.startsWith('\\sqrt{')) {
+        return coeff.startsWith('-') ? coeff : '1' + coeff;
+      }
+      // 如果前面有数字，保持原样
+      return coeff;
+    }
+
+    return coeff;
+  }
+
+  /// 合并系数，保持符号形式
+  String _combineCoefficients(String? existing, String newCoeff) {
+    if (existing == null || existing == '0') return newCoeff;
+    if (newCoeff == '0') return existing;
+
+    // 简化逻辑：如果都是数字，可以相加；否则保持原样
+    final existingNum = double.tryParse(existing);
+    final newNum = double.tryParse(newCoeff);
+
+    if (existingNum != null && newNum != null) {
+      final sum = existingNum + newNum;
+      return sum.toString();
+    }
+
+    // 如果包含符号表达式，直接连接
+    return '$existing+$newCoeff'.replaceAll('+-', '-');
+  }
+
+  /// 减去系数
+  String _subtractCoefficients(String a, String b) {
+    if (a == '0') return b.startsWith('-') ? b.substring(1) : '-$b';
+    if (b == '0') return a;
+
+    final aNum = double.tryParse(a);
+    final bNum = double.tryParse(b);
+
+    if (aNum != null && bNum != null) {
+      final result = aNum - bNum;
+      return result.toString();
+    }
+
+    // 符号表达式相减
+    return '$a-${b.startsWith('-') ? b.substring(1) : b}';
+  }
+
+  /// 计算判别式，保持符号形式
+  String _calculateDeltaSymbolic(String a, String b, String c) {
+    // Delta = b^2 - 4ac
+
+    // 计算 b^2
+    String bSquared;
+    if (b == '0') {
+      bSquared = '0';
+    } else if (b == '1') {
+      bSquared = '1';
+    } else if (b == '-1') {
+      bSquared = '1';
+    } else if (b.startsWith('-')) {
+      final absB = b.substring(1);
+      bSquared = '$absB^2';
+    } else {
+      bSquared = '$b^2';
+    }
+
+    // 计算 4ac
+    String fourAC;
+    if (a == '0' || c == '0') {
+      fourAC = '0';
+    } else {
+      // 处理符号
+      String aCoeff = a;
+      String cCoeff = c;
+
+      // 如果 a 或 c 是负数，需要处理符号
+      bool aNegative = a.startsWith('-');
+      bool cNegative = c.startsWith('-');
+
+      if (aNegative) aCoeff = a.substring(1);
+      if (cNegative) cCoeff = c.substring(1);
+
+      String acProduct;
+      if (aCoeff == '1' && cCoeff == '1') {
+        acProduct = '1';
+      } else if (aCoeff == '1') {
+        acProduct = cCoeff;
+      } else if (cCoeff == '1') {
+        acProduct = aCoeff;
+      } else {
+        acProduct = '$aCoeff \\cdot $cCoeff';
+      }
+
+      // 确定 4ac 的符号
+      bool productNegative = aNegative != cNegative;
+      String fourACValue = '4 \\cdot $acProduct';
+
+      if (productNegative) {
+        fourAC = '-$fourACValue';
+      } else {
+        fourAC = fourACValue;
+      }
+    }
+
+    // 计算 Delta = b^2 - 4ac
+    if (bSquared == '0' && fourAC == '0') {
+      return '0';
+    } else if (bSquared == '0') {
+      return fourAC.startsWith('-') ? fourAC.substring(1) : '-$fourAC';
+    } else if (fourAC == '0') {
+      return bSquared;
+    } else {
+      String sign = fourAC.startsWith('-') ? '+' : '-';
+      String absFourAC = fourAC.startsWith('-') ? fourAC.substring(1) : fourAC;
+      return '$bSquared $sign $absFourAC';
+    }
+  }
+
+  Rational _rationalFromDouble(double value, {int maxPrecision = 12}) {
+    // 限制小数精度，避免无限循环小数
+    final str = value.toStringAsFixed(maxPrecision);
+
+    if (!str.contains('.')) {
+      return Rational.parse(str);
+    }
+
+    final parts = str.split('.');
+    final integerPart = parts[0];
+    final fractionalPart = parts[1];
+
+    final numerator = BigInt.parse(integerPart + fractionalPart);
+    final denominator = BigInt.from(10).pow(fractionalPart.length);
+
+    return Rational(numerator, denominator);
+  }
 }
