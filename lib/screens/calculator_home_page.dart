@@ -393,7 +393,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
-                  height: 300,
+                  height: 340,
                   child: Builder(
                     builder: (context) {
                       final points = _generatePlotPoints(
@@ -425,7 +425,12 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                               sideTitles: SideTitles(showTitles: false),
                             ),
                           ),
-                          borderData: FlBorderData(show: true),
+                          borderData: FlBorderData(
+                            show: true,
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
                           lineBarsData: [
                             LineChartBarData(
                               spots: points,
