@@ -1,8 +1,8 @@
 import 'dart:math';
-import 'package:flutter/foundation.dart'; // For kDebugMode
-import 'package:math_expressions/math_expressions.dart';
 import 'package:rational/rational.dart';
 import 'models/calculation_step.dart';
+import 'calculator.dart';
+import 'parser.dart';
 
 /// 帮助解析一元一次方程 ax+b=cx+d 的辅助类
 class LinearEquationParts {
@@ -43,9 +43,6 @@ class SolverService {
     try {
       return _solveSimpleExpression(input); // 使用原始输入以保留运算符
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
       throw Exception('无法识别的格式。请检查您的方程或表达式。');
     }
   }
@@ -76,17 +73,41 @@ class SolverService {
     // 预处理输入，将三角函数的参数从度转换为弧度
     String processedInput = _convertTrigToRadians(input);
 
-    GrammarParser p = GrammarParser();
-    Expression exp = p.parse(processedInput);
-    final result = RealEvaluator().evaluate(exp).toDouble();
+    try {
+      // 使用自定义解析器解析表达式
+      final parser = Parser(processedInput);
+      final expr = parser.parse();
 
-    // 尝试将结果格式化为几倍根号的形式
-    final formattedResult = _formatSqrtResult(result);
+      // 对表达式进行求值
+      final evaluatedExpr = expr.evaluate();
 
-    return CalculationResult(
-      steps: steps,
-      finalAnswer: '\$\$$formattedResult\$\$',
-    );
+      // 获取数值结果 - 需要正确进行类型转换
+      double result;
+      if (evaluatedExpr is IntExpr) {
+        result = evaluatedExpr.value.toDouble();
+      } else if (evaluatedExpr is DoubleExpr) {
+        result = evaluatedExpr.value;
+      } else if (evaluatedExpr is FractionExpr) {
+        result = evaluatedExpr.numerator / evaluatedExpr.denominator;
+      } else {
+        // 如果无法完全求值为数值，尝试简化并转换为字符串
+        final simplified = evaluatedExpr.simplify();
+        return CalculationResult(
+          steps: steps,
+          finalAnswer: '\$\$${simplified.toString()}\$\$',
+        );
+      }
+
+      // 尝试将结果格式化为几倍根号的形式
+      final formattedResult = _formatSqrtResult(result);
+
+      return CalculationResult(
+        steps: steps,
+        finalAnswer: '\$\$$formattedResult\$\$',
+      );
+    } catch (e) {
+      throw Exception('无法解析表达式: $input');
+    }
   }
 
   /// 2. 求解一元一次方程
@@ -714,21 +735,28 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
       if (factorMulMatch != null) {
         final factor1 = factorMulMatch.group(1)!;
         final factor2 = factorMulMatch.group(2)!;
+        print('Expanding: ($factor1) * ($factor2)');
+
         final coeffs1 = _parsePolynomial(factor1);
         final coeffs2 = _parsePolynomial(factor2);
+        print('Coeffs1: $coeffs1, Coeffs2: $coeffs2');
 
         final a = coeffs1[1] ?? 0;
         final b = coeffs1[0] ?? 0;
         final c = coeffs2[1] ?? 0;
         final d = coeffs2[0] ?? 0;
+        print('a=$a, b=$b, c=$c, d=$d');
 
         final newA = a * c;
         final newB = a * d + b * c;
         final newC = b * d;
+        print('newA=$newA, newB=$newB, newC=$newC');
 
         final expanded =
             '${newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
-        result = result.replaceFirst(factorMulMatch.group(0)!, '($expanded)');
+        print('Expanded result: $expanded');
+
+        result = result.replaceFirst(factorMulMatch.group(0)!, expanded);
         iterationCount++;
         continue;
       }
@@ -762,7 +790,11 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         final newC = termB * factorB;
 
         final expanded =
-            '${newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
+            '${newA == 1
+                ? ''
+                : newA == -1
+                ? '-'
+                : newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
         result = result.replaceFirst(termFactorMatch.group(0)!, '($expanded)');
         iterationCount++;
         continue;
@@ -774,6 +806,54 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
     if (iterationCount >= maxIterations) {
       throw Exception('表达式展开过于复杂，请简化输入。');
+    }
+
+    // 检查是否为方程（包含等号），如果是的话，将右边的常数项移到左边
+    if (result.contains('=')) {
+      final parts = result.split('=');
+      if (parts.length == 2) {
+        final leftSide = parts[0];
+        final rightSide = parts[1];
+
+        // 解析左边的多项式
+        final leftCoeffs = _parsePolynomial(leftSide);
+        final rightCoeffs = _parsePolynomial(rightSide);
+
+        // 计算标准形式 ax^2 + bx + c = 0 的系数
+        // A = B 转换为 A - B = 0，所以右边的系数要取相反数
+        final a = (leftCoeffs[2] ?? 0) - (rightCoeffs[2] ?? 0);
+        final b = (leftCoeffs[1] ?? 0) - (rightCoeffs[1] ?? 0);
+        final c = (leftCoeffs[0] ?? 0) - (rightCoeffs[0] ?? 0);
+
+        // 构建标准形式的方程
+        String standardForm = '';
+        if (a != 0) {
+          standardForm +=
+              '${a == 1
+                  ? ''
+                  : a == -1
+                  ? '-'
+                  : a}x^2';
+        }
+        if (b != 0) {
+          standardForm += b > 0 ? '+${b}x' : '${b}x';
+        }
+        if (c != 0) {
+          standardForm += c > 0 ? '+$c' : '$c';
+        }
+
+        // 移除开头的加号
+        if (standardForm.startsWith('+')) {
+          standardForm = standardForm.substring(1);
+        }
+
+        // 如果所有系数都为0，则方程恒成立
+        if (standardForm.isEmpty) {
+          standardForm = '0';
+        }
+
+        result = '$standardForm=0';
+      }
     }
 
     return result;
@@ -796,13 +876,24 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
   Map<int, double> _parsePolynomial(String side) {
     final coeffs = <int, double>{};
+
+    // 如果输入包含括号，去掉括号
+    var cleanSide = side;
+    if (cleanSide.startsWith('(') && cleanSide.endsWith(')')) {
+      cleanSide = cleanSide.substring(1, cleanSide.length - 1);
+    }
+
     // 扩展模式以支持 sqrt 函数
     final pattern = RegExp(
       r'([+-]?(?:\d*\.?\d*|sqrt\(\d+\)))x(?:\^(\d+))?|([+-]?(?:\d*\.?\d*|sqrt\(\d+\)))',
     );
-    var s = side.startsWith('+') || side.startsWith('-') ? side : '+$side';
+    var s = cleanSide.startsWith('+') || cleanSide.startsWith('-')
+        ? cleanSide
+        : '+$cleanSide';
 
     for (final match in pattern.allMatches(s)) {
+      if (match.group(0)!.isEmpty) continue; // Skip empty matches
+
       if (match.group(3) != null) {
         // 常数项
         final constStr = match.group(3)!;
@@ -893,26 +984,31 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     if (a == 0) return null;
     int ac = a * c;
     int absAc = ac.abs();
+
+    // Try all divisors of abs(ac) and consider both positive and negative factors
     for (int d = 1; d <= sqrt(absAc).toInt(); d++) {
       if (absAc % d == 0) {
         int d1 = d;
         int d2 = absAc ~/ d;
-        List<int> signs1 = ac >= 0 ? [1, -1] : [1, -1];
-        List<int> signs2 = ac >= 0 ? [1, -1] : [1, -1];
-        for (int s1 in signs1) {
-          for (int s2 in signs2) {
-            int m = s1 * d1;
-            int n = s2 * d2;
-            if (check(m, n, b)) return formatFactor(m, n, a);
-            m = s1 * d1;
-            n = s2 * (-d2);
-            if (check(m, n, b)) return formatFactor(m, n, a);
-            m = s1 * (-d1);
-            n = s2 * d2;
-            if (check(m, n, b)) return formatFactor(m, n, a);
-            m = s1 * (-d1);
-            n = s2 * (-d2);
-            if (check(m, n, b)) return formatFactor(m, n, a);
+
+        // Try all sign combinations for the factors
+        // We need m * n = ac and m + n = b
+        List<int> signCombinations = [1, -1];
+
+        for (int sign1 in signCombinations) {
+          for (int sign2 in signCombinations) {
+            int m = sign1 * d1;
+            int n = sign2 * d2;
+            if (m + n == b && m * n == ac) {
+              return formatFactor(m, n, a);
+            }
+
+            // Also try the swapped version
+            m = sign1 * d2;
+            n = sign2 * d1;
+            if (m + n == b && m * n == ac) {
+              return formatFactor(m, n, a);
+            }
           }
         }
       }
@@ -1109,10 +1205,11 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     for (int i = 0; i < s.length; i++) {
       final char = s[i];
 
-      if (char == '(')
+      if (char == '(') {
         parenDepth++;
-      else if (char == ')')
+      } else if (char == ')') {
         parenDepth--;
+      }
 
       // Only split on + or - when not inside parentheses
       if (parenDepth == 0 && (char == '+' || char == '-') && i > start) {
