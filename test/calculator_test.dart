@@ -231,4 +231,46 @@ void main() {
       );
     });
   });
+
+  group('百分比运算符', () {
+    test('基本百分比', () {
+      var expr = Parser("50%").parse();
+      expect(expr.evaluate().toString(), "0.5");
+    });
+
+    test('100%', () {
+      var expr = Parser("100%").parse();
+      expect(expr.evaluate().toString(), "1.0");
+    });
+
+    test('25%', () {
+      var expr = Parser("25%").parse();
+      expect(expr.evaluate().toString(), "0.25");
+    });
+
+    test('负百分比', () {
+      var expr = Parser("-50%").parse();
+      expect(expr.evaluate().toString(), "-0.5");
+    });
+
+    test('小数百分比', () {
+      var expr = Parser("50.5%").parse();
+      expect(expr.evaluate().toString(), "0.505");
+    });
+
+    test('分数百分比', () {
+      var expr = Parser("1/2%").parse();
+      expect(expr.evaluate().toString(), "0.005");
+    });
+
+    test('百分比在表达式中', () {
+      var expr = Parser("50% + 25%").parse();
+      expect(expr.evaluate().toString(), "0.75");
+    });
+
+    test('百分比与数字相乘', () {
+      var expr = Parser("2 * 50%").parse();
+      expect(expr.evaluate().toString(), "1.0");
+    });
+  });
 }

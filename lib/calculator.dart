@@ -151,6 +151,17 @@ class AddExpr extends Expr {
       return IntExpr(l.value + r.value);
     }
 
+    // 小数相加
+    if (l is DoubleExpr && r is DoubleExpr) {
+      return DoubleExpr(l.value + r.value);
+    }
+    if (l is IntExpr && r is DoubleExpr) {
+      return DoubleExpr(l.value + r.value);
+    }
+    if (l is DoubleExpr && r is IntExpr) {
+      return DoubleExpr(l.value + r.value);
+    }
+
     // 分数相加 / 分数与整数相加
     if (l is FractionExpr && r is FractionExpr) {
       return FractionExpr(
@@ -169,6 +180,14 @@ class AddExpr extends Expr {
         l.numerator + r.value * l.denominator,
         l.denominator,
       ).simplify();
+    }
+
+    // 分数与小数相加
+    if (l is FractionExpr && r is DoubleExpr) {
+      return DoubleExpr(l.numerator / l.denominator + r.value);
+    }
+    if (l is DoubleExpr && r is FractionExpr) {
+      return DoubleExpr(l.value + r.numerator / r.denominator);
     }
 
     // 合并同类的 sqrt 项: a*sqrt(X) + b*sqrt(X) = (a+b)*sqrt(X)
@@ -221,6 +240,18 @@ class SubExpr extends Expr {
     if (l is IntExpr && r is IntExpr) {
       return IntExpr(l.value - r.value);
     }
+
+    // 小数相减
+    if (l is DoubleExpr && r is DoubleExpr) {
+      return DoubleExpr(l.value - r.value);
+    }
+    if (l is IntExpr && r is DoubleExpr) {
+      return DoubleExpr(l.value - r.value);
+    }
+    if (l is DoubleExpr && r is IntExpr) {
+      return DoubleExpr(l.value - r.value);
+    }
+
     if (l is FractionExpr && r is FractionExpr) {
       return FractionExpr(
         l.numerator * r.denominator - r.numerator * l.denominator,
@@ -238,6 +269,14 @@ class SubExpr extends Expr {
         l.numerator - r.value * l.denominator,
         l.denominator,
       ).simplify();
+    }
+
+    // 分数与小数相减
+    if (l is FractionExpr && r is DoubleExpr) {
+      return DoubleExpr(l.numerator / l.denominator - r.value);
+    }
+    if (l is DoubleExpr && r is FractionExpr) {
+      return DoubleExpr(l.value - r.numerator / r.denominator);
     }
 
     // 处理同类 sqrt 项: a*sqrt(X) - b*sqrt(X) = (a-b)*sqrt(X)
@@ -311,6 +350,18 @@ class MulExpr extends Expr {
     if (l is IntExpr && r is IntExpr) {
       return IntExpr(l.value * r.value);
     }
+
+    // 小数相乘
+    if (l is DoubleExpr && r is DoubleExpr) {
+      return DoubleExpr(l.value * r.value);
+    }
+    if (l is IntExpr && r is DoubleExpr) {
+      return DoubleExpr(l.value * r.value);
+    }
+    if (l is DoubleExpr && r is IntExpr) {
+      return DoubleExpr(l.value * r.value);
+    }
+
     if (l is FractionExpr && r is IntExpr) {
       return FractionExpr(l.numerator * r.value, l.denominator).simplify();
     }
@@ -322,6 +373,14 @@ class MulExpr extends Expr {
         l.numerator * r.numerator,
         l.denominator * r.denominator,
       ).simplify();
+    }
+
+    // 分数与小数相乘
+    if (l is FractionExpr && r is DoubleExpr) {
+      return DoubleExpr(l.numerator / l.denominator * r.value);
+    }
+    if (l is DoubleExpr && r is FractionExpr) {
+      return DoubleExpr(l.value * r.numerator / r.denominator);
     }
 
     // sqrt * sqrt: sqrt(a)*sqrt(a) = a
@@ -854,6 +913,37 @@ class AbsExpr extends Expr {
 
   @override
   String toString() => "|$inner|";
+}
+
+// === PercentExpr ===
+class PercentExpr extends Expr {
+  final Expr inner;
+  PercentExpr(this.inner);
+
+  @override
+  Expr simplify() => PercentExpr(inner.simplify());
+
+  @override
+  Expr evaluate() {
+    var i = inner.evaluate();
+    if (i is IntExpr) {
+      return DoubleExpr(i.value / 100.0);
+    }
+    if (i is DoubleExpr) {
+      return DoubleExpr(i.value / 100.0);
+    }
+    if (i is FractionExpr) {
+      return DoubleExpr(i.numerator / (i.denominator * 100.0));
+    }
+    return PercentExpr(i);
+  }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      PercentExpr(inner.substitute(varName, value));
+
+  @override
+  String toString() => "$inner%";
 }
 
 // === 辅助：识别 a * sqrt(X) 形式 ===

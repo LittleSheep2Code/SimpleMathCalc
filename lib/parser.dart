@@ -17,7 +17,15 @@ class Parser {
     }
   }
 
-  Expr parse() => parseAdd();
+  Expr parse() {
+    var expr = parseAdd();
+    skipSpaces();
+    if (!isEnd && current == '%') {
+      eat();
+      expr = PercentExpr(expr);
+    }
+    return expr;
+  }
 
   Expr parseAdd() {
     var expr = parseMul();
@@ -45,6 +53,12 @@ class Parser {
         expr = DivExpr(expr, right);
       }
       skipSpaces();
+    }
+    // Handle percentage operator
+    skipSpaces();
+    if (!isEnd && current == '%') {
+      eat();
+      expr = PercentExpr(expr);
     }
     return expr;
   }
