@@ -52,12 +52,17 @@ class SolverService {
   /// 1. 求解简单表达式
   CalculationResult _solveSimpleExpression(String input) {
     final steps = <CalculationStep>[];
+    // Parse the input to get LaTeX-formatted version
+    final parser = Parser(input);
+    final parsedExpr = parser.parse();
+    final latexInput = parsedExpr.toString().replaceAll('*', '\\cdot');
+
     steps.add(
       CalculationStep(
         stepNumber: 1,
         title: '表达式求值',
         explanation: '这是一个标准的数学表达式，我们将直接计算其结果。',
-        formula: '\$\$$input\$\$',
+        formula: '\$\$$latexInput\$\$',
       ),
     );
 
@@ -113,12 +118,17 @@ class SolverService {
   /// 2. 求解一元一次方程
   CalculationResult _solveLinearEquation(String input) {
     final steps = <CalculationStep>[];
+    // Parse the input to get LaTeX-formatted version
+    final parser = Parser(input);
+    final parsedExpr = parser.parse();
+    final latexInput = parsedExpr.toString().replaceAll('*', '\\cdot');
+
     steps.add(
       CalculationStep(
         stepNumber: 0,
         title: '原方程',
         explanation: '这是一元一次方程。',
-        formula: '\$\$$input\$\$',
+        formula: '\$\$$latexInput\$\$',
       ),
     );
 
@@ -1262,8 +1272,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
   /// 格式化原始方程，保持符号形式
   String _formatOriginalEquation(String input) {
-    // Simply return the original equation with proper LaTeX formatting
-    // This avoids complex parsing issues and preserves the original symbolic form
+    // Parse the equation and convert to LaTeX
     String result = input.replaceAll(' ', '');
 
     // 确保方程格式正确
@@ -1271,9 +1280,31 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
       result = '$result=0';
     }
 
-    // Replace sqrt with LaTeX format
-    result = result.replaceAll('sqrt(', '\\sqrt{');
-    result = result.replaceAll(')', '}');
+    final parts = result.split('=');
+    if (parts.length == 2) {
+      try {
+        final leftParser = Parser(parts[0]);
+        final leftExpr = leftParser.parse();
+        final rightParser = Parser(parts[1]);
+        final rightExpr = rightParser.parse();
+        result =
+            '${leftExpr.toString().replaceAll('*', '\\cdot')}=${rightExpr.toString().replaceAll('*', '\\cdot')}';
+      } catch (e) {
+        // Fallback to original if parsing fails
+        result = result.replaceAll('sqrt(', '\\sqrt{');
+        result = result.replaceAll(')', '}');
+      }
+    } else {
+      try {
+        final parser = Parser(result.split('=')[0]);
+        final expr = parser.parse();
+        result = '${expr.toString().replaceAll('*', '\\cdot')}=0';
+      } catch (e) {
+        // Fallback
+        result = result.replaceAll('sqrt(', '\\sqrt{');
+        result = result.replaceAll(')', '}');
+      }
+    }
 
     return '\$\$$result\$\$';
   }

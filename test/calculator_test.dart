@@ -39,7 +39,7 @@ void main() {
 
     test('非完全平方数', () {
       var expr = Parser("sqrt(8)").parse();
-      expect(expr.simplify().toString().replaceAll(' ', ''), "(2*sqrt(2))");
+      expect(expr.simplify().toString().replaceAll(' ', ''), "(2*\\sqrt{2})");
     });
   });
 
@@ -53,7 +53,7 @@ void main() {
       var expr = Parser("sqrt(8)/4 + 1/2").parse();
       expect(
         expr.evaluate().toString().replaceAll(' ', ''),
-        "((sqrt(2)/2)+1/2)",
+        "((\\sqrt{2}/2)+1/2)",
       );
     });
   });

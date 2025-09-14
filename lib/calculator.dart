@@ -1,5 +1,5 @@
 // === 在 abstract class Expr 中添加声明 ===
-import 'dart:math' show sqrt, cos, sin, tan;
+import 'dart:math' show sqrt, cos, sin, tan, pow;
 
 abstract class Expr {
   Expr simplify();
@@ -488,7 +488,7 @@ class SqrtExpr extends Expr {
       SqrtExpr(inner.substitute(varName, value));
 
   @override
-  String toString() => "sqrt($inner)";
+  String toString() => "\\sqrt{${inner.toString()}}";
 }
 
 // === CosExpr ===
@@ -582,6 +582,90 @@ class TanExpr extends Expr {
 
   @override
   String toString() => "tan($inner)";
+}
+
+// === PowExpr ===
+class PowExpr extends Expr {
+  final Expr left, right;
+  PowExpr(this.left, this.right);
+
+  @override
+  Expr simplify() {
+    var l = left.simplify();
+    var r = right.simplify();
+
+    // x^0 = 1
+    if (r is IntExpr && r.value == 0) return IntExpr(1);
+    // x^1 = x
+    if (r is IntExpr && r.value == 1) return l;
+    // 1^x = 1
+    if (l is IntExpr && l.value == 1) return IntExpr(1);
+    // 0^x = 0 (for x != 0)
+    if (l is IntExpr && l.value == 0 && !(r is IntExpr && r.value == 0)) {
+      return IntExpr(0);
+    }
+
+    return PowExpr(l, r);
+  }
+
+  @override
+  Expr evaluate() {
+    var l = left.evaluate();
+    var r = right.evaluate();
+
+    // x^0 = 1
+    if (r is IntExpr && r.value == 0) return IntExpr(1);
+    // x^1 = x
+    if (r is IntExpr && r.value == 1) return l;
+    // 1^x = 1
+    if (l is IntExpr && l.value == 1) return IntExpr(1);
+    // 0^x = 0 (for x != 0)
+    if (l is IntExpr && l.value == 0 && !(r is IntExpr && r.value == 0))
+      return IntExpr(0);
+
+    // If both are numbers, compute
+    if (l is IntExpr && r is IntExpr) {
+      return DoubleExpr(pow(l.value.toDouble(), r.value.toDouble()).toDouble());
+    }
+    if (l is DoubleExpr && r is IntExpr) {
+      return DoubleExpr(pow(l.value, r.value.toDouble()).toDouble());
+    }
+    if (l is IntExpr && r is DoubleExpr) {
+      return DoubleExpr(pow(l.value.toDouble(), r.value).toDouble());
+    }
+    if (l is DoubleExpr && r is DoubleExpr) {
+      return DoubleExpr(pow(l.value, r.value).toDouble());
+    }
+
+    return PowExpr(l, r);
+  }
+
+  @override
+  Expr substitute(String varName, Expr value) => PowExpr(
+    left.substitute(varName, value),
+    right.substitute(varName, value),
+  );
+
+  @override
+  String toString() {
+    String leftStr = left.toString();
+    String rightStr = right.toString();
+
+    // Remove outer parentheses
+    if (leftStr.startsWith('(') && leftStr.endsWith(')')) {
+      leftStr = leftStr.substring(1, leftStr.length - 1);
+    }
+    if (rightStr.startsWith('(') && rightStr.endsWith(')')) {
+      rightStr = rightStr.substring(1, rightStr.length - 1);
+    }
+
+    // Add parentheses around base if it's a complex expression
+    bool needsParens =
+        !(left is VarExpr || left is IntExpr || left is DoubleExpr);
+    String base = needsParens ? '($leftStr)' : leftStr;
+
+    return '$base^{$rightStr}';
+  }
 }
 
 // === 辅助：识别 a * sqrt(X) 形式 ===

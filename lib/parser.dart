@@ -33,18 +33,29 @@ class Parser {
   }
 
   Expr parseMul() {
-    var expr = parseAtom();
+    var expr = parsePow();
     skipSpaces();
     while (!isEnd && (current == '*' || current == '/')) {
       var op = current;
       eat();
-      var right = parseAtom();
+      var right = parsePow();
       if (op == '*') {
         expr = MulExpr(expr, right);
       } else {
         expr = DivExpr(expr, right);
       }
       skipSpaces();
+    }
+    return expr;
+  }
+
+  Expr parsePow() {
+    var expr = parseAtom();
+    skipSpaces();
+    if (!isEnd && current == '^') {
+      eat();
+      var right = parsePow(); // right associative
+      return PowExpr(expr, right);
     }
     return expr;
   }
@@ -106,13 +117,20 @@ class Parser {
       return VarExpr(varName);
     }
 
-    // 解析整数
+    // 解析数字 (整数或小数)
     var buf = '';
-    while (!isEnd && RegExp(r'\d').hasMatch(current)) {
+    bool hasDot = false;
+    while (!isEnd &&
+        (RegExp(r'\d').hasMatch(current) || (!hasDot && current == '.'))) {
+      if (current == '.') hasDot = true;
       buf += current;
       eat();
     }
     if (buf.isEmpty) throw Exception("无法解析: $current");
-    return IntExpr(int.parse(buf));
+    if (hasDot) {
+      return DoubleExpr(double.parse(buf));
+    } else {
+      return IntExpr(int.parse(buf));
+    }
   }
 }
