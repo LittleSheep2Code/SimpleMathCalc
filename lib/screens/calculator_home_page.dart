@@ -410,12 +410,22 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                               sideTitles: SideTitles(
                                 showTitles: true,
                                 reservedSize: 40,
+                                getTitlesWidget: (value, meta) =>
+                                    SideTitleWidget(
+                                      axisSide: meta.axisSide,
+                                      child: Text(value.toStringAsFixed(2)),
+                                    ),
                               ),
                             ),
                             bottomTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
                                 reservedSize: 30,
+                                getTitlesWidget: (value, meta) =>
+                                    SideTitleWidget(
+                                      axisSide: meta.axisSide,
+                                      child: Text(value.toStringAsFixed(2)),
+                                    ),
                               ),
                             ),
                             topTitles: AxisTitles(
@@ -429,6 +439,19 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                             show: true,
                             border: Border.all(
                               color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
+                          lineTouchData: LineTouchData(
+                            enabled: true,
+                            touchTooltipData: LineTouchTooltipData(
+                              getTooltipItems: (touchedSpots) {
+                                return touchedSpots.map((spot) {
+                                  return LineTooltipItem(
+                                    'x = ${spot.x.toStringAsFixed(2)}',
+                                    const TextStyle(color: Colors.white),
+                                  );
+                                }).toList();
+                              },
                             ),
                           ),
                           lineBarsData: [
