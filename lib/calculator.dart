@@ -80,11 +80,18 @@ class FractionExpr extends Expr {
   final int denominator;
 
   FractionExpr(this.numerator, this.denominator) {
-    if (denominator == 0) throw Exception("分母不能为0");
+    // Allow denominator 0 to handle division by zero
   }
 
   @override
   Expr simplify() {
+    if (denominator == 0) {
+      if (numerator == 0) return DoubleExpr(double.nan);
+      return DoubleExpr(
+        numerator.isNegative ? double.negativeInfinity : double.infinity,
+      );
+    }
+
     int g = _gcd(numerator.abs(), denominator.abs());
     int n = numerator ~/ g;
     int d = denominator ~/ g;
@@ -467,6 +474,23 @@ class DivExpr extends Expr {
         l.numerator * r.denominator,
         l.denominator * r.numerator,
       ).simplify();
+    }
+
+    // Handle DoubleExpr cases
+    if (l is DoubleExpr && r is DoubleExpr) {
+      return DoubleExpr(l.value / r.value);
+    }
+    if (l is IntExpr && r is DoubleExpr) {
+      return DoubleExpr(l.value.toDouble() / r.value);
+    }
+    if (l is DoubleExpr && r is IntExpr) {
+      return DoubleExpr(l.value / r.value.toDouble());
+    }
+    if (l is FractionExpr && r is DoubleExpr) {
+      return DoubleExpr((l.numerator.toDouble() / l.denominator) / r.value);
+    }
+    if (l is DoubleExpr && r is FractionExpr) {
+      return DoubleExpr(l.value / (r.numerator.toDouble() / r.denominator));
     }
 
     // handle (k * sqrt(X)) / d 约分

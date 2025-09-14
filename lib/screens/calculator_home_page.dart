@@ -146,10 +146,6 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                       floatingLabelAlignment: FloatingLabelAlignment.center,
                       hintText: '例如: 2x^2 - 8x + 6 = 0',
                     ),
-                    keyboardType: TextInputType.numberWithOptions(
-                      signed: true,
-                      decimal: true,
-                    ),
                     onSubmitted: (_) => _solveEquation(),
                   ),
                 ),

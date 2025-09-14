@@ -28,9 +28,14 @@ class GraphCard extends StatefulWidget {
 class _GraphCardState extends State<GraphCard> {
   final SolverService _solverService = SolverService();
   FlSpot? _currentTouchedPoint;
+  final TextEditingController _xController = TextEditingController();
+  double? _manualY;
 
   /// 生成函数图表的点
-  List<FlSpot> _generatePlotPoints(String expression, double zoomFactor) {
+  ({List<FlSpot> leftPoints, List<FlSpot> rightPoints}) _generatePlotPoints(
+    String expression,
+    double zoomFactor,
+  ) {
     try {
       // 使用solver准备函数表达式（展开因式形式）
       String functionExpr = _solverService.prepareFunctionForGraphing(
@@ -39,7 +44,7 @@ class _GraphCardState extends State<GraphCard> {
 
       // 如果表达式不包含 x，返回空列表
       if (!functionExpr.contains('x') && !functionExpr.contains('X')) {
-        return [];
+        return (leftPoints: [], rightPoints: []);
       }
 
       // 预处理表达式，确保格式正确
@@ -69,11 +74,15 @@ class _GraphCardState extends State<GraphCard> {
 
       // 根据缩放因子动态调整范围和步长
       final range = 10.0 * zoomFactor;
-      final step = max(0.05, 0.2 / zoomFactor); // 缩放时步长更小，放大时步长更大
+      final step = max(0.01, 0.05 / zoomFactor); // 更小的步长以获得更好的分辨率
 
       // 生成点
-      List<FlSpot> points = [];
+      List<FlSpot> leftPoints = [];
+      List<FlSpot> rightPoints = [];
       for (double i = -range; i <= range; i += step) {
+        // 跳过 x = 0 以避免在 y=1/x 等函数中的奇点
+        if (i.abs() < 1e-10) continue;
+
         try {
           // 替换变量 x 为当前值
           final substituted = expr.substitute('x', DoubleExpr(i));
@@ -81,8 +90,12 @@ class _GraphCardState extends State<GraphCard> {
 
           if (evaluated is DoubleExpr) {
             final y = evaluated.value;
-            if (y.isFinite && !y.isNaN) {
-              points.add(FlSpot(i, y));
+            if (y.isFinite && y.abs() <= 100.0) {
+              if (i < 0) {
+                leftPoints.add(FlSpot(i, y));
+              } else {
+                rightPoints.add(FlSpot(i, y));
+              }
             }
           }
         } catch (e) {
@@ -91,22 +104,17 @@ class _GraphCardState extends State<GraphCard> {
         }
       }
 
-      // 如果没有足够的点，返回空列表
-      if (points.length < 2) {
-        debugPrint('Generated ${points.length} dots');
-        return [];
-      }
-
       // 排序点按 x 值
-      points.sort((a, b) => a.x.compareTo(b.x));
+      leftPoints.sort((a, b) => a.x.compareTo(b.x));
+      rightPoints.sort((a, b) => a.x.compareTo(b.x));
 
       debugPrint(
-        'Generated ${points.length} dots with zoom factor $zoomFactor',
+        'Generated ${leftPoints.length} left dots and ${rightPoints.length} right dots with zoom factor $zoomFactor',
       );
-      return points;
+      return (leftPoints: leftPoints, rightPoints: rightPoints);
     } catch (e) {
       debugPrint('Error generating plot points: $e');
-      return [];
+      return (leftPoints: [], rightPoints: []);
     }
   }
 
@@ -136,6 +144,11 @@ class _GraphCardState extends State<GraphCard> {
       maxY = max(maxY, point.y);
     }
 
+    // Limit y range to prevent extreme values from making the chart unreadable
+    const double maxYRange = 100.0;
+    if (maxY > maxYRange) maxY = maxYRange;
+    if (minY < -maxYRange) minY = -maxYRange;
+
     // 添加边距
     final xPadding = (maxX - minX) * 0.1;
     final yPadding = (maxY - minY) * 0.1;
@@ -159,6 +172,61 @@ class _GraphCardState extends State<GraphCard> {
     if (absVal >= 1) return value.toStringAsFixed(2);
     if (absVal >= 0.1) return value.toStringAsFixed(3);
     return value.toStringAsFixed(4);
+  }
+
+  double? _calculateYForX(double x) {
+    try {
+      String functionExpr = _solverService.prepareFunctionForGraphing(
+        widget.expression,
+      );
+      if (!functionExpr.contains('x') && !functionExpr.contains('X')) {
+        return null;
+      }
+      functionExpr = functionExpr.replaceAll(' ', '');
+      functionExpr = functionExpr.replaceAllMapped(
+        RegExp(r'(\d)([a-zA-Z])'),
+        (match) => '${match.group(1)}*${match.group(2)}',
+      );
+      functionExpr = functionExpr.replaceAllMapped(
+        RegExp(r'([a-zA-Z])(\d)'),
+        (match) => '${match.group(1)}*${match.group(2)}',
+      );
+      functionExpr = functionExpr.replaceAllMapped(
+        RegExp(r'%([a-zA-Z\d])'),
+        (match) => '%*${match.group(1)}',
+      );
+      final parser = Parser(functionExpr);
+      final expr = parser.parse();
+      final substituted = expr.substitute('x', DoubleExpr(x));
+      final evaluated = substituted.evaluate();
+      if (evaluated is DoubleExpr &&
+          evaluated.value.isFinite &&
+          !evaluated.value.isNaN) {
+        return evaluated.value;
+      }
+    } catch (e) {
+      // Handle error
+    }
+    return 0 / 0;
+  }
+
+  void _performCalculation() {
+    final x = double.tryParse(_xController.text);
+    if (x != null) {
+      setState(() {
+        _manualY = _calculateYForX(x);
+      });
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('请输入有效的数字')));
+    }
+  }
+
+  @override
+  void dispose() {
+    _xController.dispose();
+    super.dispose();
   }
 
   @override
@@ -212,12 +280,13 @@ class _GraphCardState extends State<GraphCard> {
                   height: 340,
                   child: Builder(
                     builder: (context) {
-                      final points = _generatePlotPoints(
+                      final (:leftPoints, :rightPoints) = _generatePlotPoints(
                         widget.expression,
                         widget.zoomFactor,
                       );
+                      final allPoints = [...leftPoints, ...rightPoints];
                       final bounds = _calculateChartBounds(
-                        points,
+                        allPoints,
                         widget.zoomFactor,
                       );
 
@@ -315,14 +384,24 @@ class _GraphCardState extends State<GraphCard> {
                             ),
                           ),
                           lineBarsData: [
-                            LineChartBarData(
-                              spots: points,
-                              isCurved: true,
-                              color: Theme.of(context).colorScheme.primary,
-                              barWidth: 3,
-                              belowBarData: BarAreaData(show: false),
-                              dotData: FlDotData(show: false),
-                            ),
+                            if (leftPoints.isNotEmpty)
+                              LineChartBarData(
+                                spots: leftPoints,
+                                isCurved: true,
+                                color: Theme.of(context).colorScheme.primary,
+                                barWidth: 3,
+                                belowBarData: BarAreaData(show: false),
+                                dotData: FlDotData(show: false),
+                              ),
+                            if (rightPoints.isNotEmpty)
+                              LineChartBarData(
+                                spots: rightPoints,
+                                isCurved: true,
+                                color: Theme.of(context).colorScheme.primary,
+                                barWidth: 3,
+                                belowBarData: BarAreaData(show: false),
+                                dotData: FlDotData(show: false),
+                              ),
                           ],
                           minX: bounds.minX,
                           maxX: bounds.maxX,
@@ -353,6 +432,51 @@ class _GraphCardState extends State<GraphCard> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _xController,
+                        decoration: InputDecoration(
+                          labelText: '输入 x 值',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        keyboardType: TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
+                        ),
+                        onSubmitted: (_) => _performCalculation(),
+                        onTapOutside: (_) =>
+                            FocusManager.instance.primaryFocus?.unfocus(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: _performCalculation,
+                      icon: Icon(Icons.calculate_outlined),
+                      tooltip: '计算 y',
+                    ),
+                  ],
+                ),
+                if (_manualY != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: LaTexT(
+                      laTeXCode: Text(
+                        '\$\$x = ${double.parse(_xController.text).toStringAsFixed(4)},\\quad y = ${_manualY!.toStringAsFixed(4)}\$\$',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
                     ),
                   ),
               ],
