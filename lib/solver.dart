@@ -67,7 +67,7 @@ class SolverService {
     );
 
     // 检查是否为特殊三角函数值，可以返回精确结果
-    final exactTrigResult = _getExactTrigResult(input);
+    final exactTrigResult = getExactTrigResult(input);
     if (exactTrigResult != null) {
       return CalculationResult(
         steps: steps,
@@ -76,7 +76,7 @@ class SolverService {
     }
 
     // 预处理输入，将三角函数的参数从度转换为弧度
-    String processedInput = _convertTrigToRadians(input);
+    String processedInput = convertTrigToRadians(input);
 
     try {
       // 使用自定义解析器解析表达式
@@ -104,7 +104,7 @@ class SolverService {
       }
 
       // 尝试将结果格式化为几倍根号的形式
-      final formattedResult = _formatSqrtResult(result);
+      final formattedResult = formatSqrtResult(result);
 
       return CalculationResult(
         steps: steps,
@@ -512,198 +512,6 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
   }
 
   /// ---- 辅助函数 ----
-
-  /// 获取精确三角函数结果
-  String? _getExactTrigResult(String input) {
-    final cleanInput = input.replaceAll(' ', '').toLowerCase();
-
-    // 匹配 sin(角度) 模式
-    final sinMatch = RegExp(r'^sin\((\d+(?:\+\d+)*)\)$').firstMatch(cleanInput);
-    if (sinMatch != null) {
-      final angleExpr = sinMatch.group(1)!;
-      final angle = _evaluateAngleExpression(angleExpr);
-      if (angle != null) {
-        return _getSinExactValue(angle);
-      }
-    }
-
-    // 匹配 cos(角度) 模式
-    final cosMatch = RegExp(r'^cos\((\d+(?:\+\d+)*)\)$').firstMatch(cleanInput);
-    if (cosMatch != null) {
-      final angleExpr = cosMatch.group(1)!;
-      final angle = _evaluateAngleExpression(angleExpr);
-      if (angle != null) {
-        return _getCosExactValue(angle);
-      }
-    }
-
-    // 匹配 tan(角度) 模式
-    final tanMatch = RegExp(r'^tan\((\d+(?:\+\d+)*)\)$').firstMatch(cleanInput);
-    if (tanMatch != null) {
-      final angleExpr = tanMatch.group(1)!;
-      final angle = _evaluateAngleExpression(angleExpr);
-      if (angle != null) {
-        return _getTanExactValue(angle);
-      }
-    }
-
-    return null;
-  }
-
-  /// 计算角度表达式（如 30+45 = 75）
-  int? _evaluateAngleExpression(String expr) {
-    final parts = expr.split('+');
-    int sum = 0;
-    for (final part in parts) {
-      final num = int.tryParse(part.trim());
-      if (num == null) return null;
-      sum += num;
-    }
-    return sum;
-  }
-
-  /// 获取 sin 的精确值
-  String? _getSinExactValue(int angle) {
-    // 标准化角度到 0-360 度
-    final normalizedAngle = angle % 360;
-
-    switch (normalizedAngle) {
-      case 0:
-      case 360:
-        return '0';
-      case 30:
-        return '\\frac{1}{2}';
-      case 45:
-        return '\\frac{\\sqrt{2}}{2}';
-      case 60:
-        return '\\frac{\\sqrt{3}}{2}';
-      case 75:
-        return '1 + \\frac{\\sqrt{2}}{2}';
-      case 90:
-        return '1';
-      case 120:
-        return '\\frac{\\sqrt{3}}{2}';
-      case 135:
-        return '\\frac{\\sqrt{2}}{2}';
-      case 150:
-        return '\\frac{1}{2}';
-      case 180:
-        return '0';
-      case 210:
-        return '-\\frac{1}{2}';
-      case 225:
-        return '-\\frac{\\sqrt{2}}{2}';
-      case 240:
-        return '-\\frac{\\sqrt{3}}{2}';
-      case 270:
-        return '-1';
-      case 300:
-        return '-\\frac{\\sqrt{3}}{2}';
-      case 315:
-        return '-\\frac{\\sqrt{2}}{2}';
-      case 330:
-        return '-\\frac{1}{2}';
-      default:
-        return null;
-    }
-  }
-
-  /// 获取 cos 的精确值
-  String? _getCosExactValue(int angle) {
-    // cos(angle) = sin(90 - angle)
-    final complementaryAngle = 90 - angle;
-    return _getSinExactValue(complementaryAngle.abs());
-  }
-
-  /// 获取 tan 的精确值
-  String? _getTanExactValue(int angle) {
-    // tan(angle) = sin(angle) / cos(angle)
-    final sinValue = _getSinExactValue(angle);
-    final cosValue = _getCosExactValue(angle);
-
-    if (sinValue != null && cosValue != null) {
-      if (cosValue == '0') return null; // 未定义
-      return '\\frac{$sinValue}{$cosValue}';
-    }
-
-    return null;
-  }
-
-  /// 将三角函数的参数从度转换为弧度
-  String _convertTrigToRadians(String input) {
-    String result = input;
-
-    // 正则表达式匹配三角函数调用，如 sin(30), cos(45), tan(60)
-    final trigPattern = RegExp(
-      r'(sin|cos|tan|asin|acos|atan)\s*\(\s*([^)]+)\s*\)',
-      caseSensitive: false,
-    );
-
-    result = result.replaceAllMapped(trigPattern, (match) {
-      final func = match.group(1)!;
-      final arg = match.group(2)!;
-
-      // 如果参数已经是弧度相关的表达式（包含 pi 或 π），则不转换
-      if (arg.contains('pi') || arg.contains('π') || arg.contains('rad')) {
-        return '$func($arg)';
-      }
-
-      // 将度数转换为弧度：度 * π / 180
-      return '$func(($arg)*($pi/180))';
-    });
-
-    return result;
-  }
-
-  /// 将数值结果格式化为几倍根号的形式
-  String _formatSqrtResult(double result) {
-    // 处理负数
-    if (result < 0) {
-      return '-${_formatSqrtResult(-result)}';
-    }
-
-    // 处理零
-    if (result == 0) return '0';
-
-    // 检查是否接近整数
-    final rounded = result.round();
-    if ((result - rounded).abs() < 1e-10) {
-      return rounded.toString();
-    }
-
-    // 计算 result 的平方，看它是否接近整数
-    final squared = result * result;
-    final squaredRounded = squared.round();
-
-    // 如果 squared 接近整数，说明 result 是某个数的平方根
-    if ((squared - squaredRounded).abs() < 1e-6) {
-      // 寻找最大的完全平方数因子
-      int maxSquareFactor = 1;
-      for (int i = 2; i * i <= squaredRounded; i++) {
-        if (squaredRounded % (i * i) == 0) {
-          maxSquareFactor = i * i;
-        }
-      }
-
-      final coefficient = sqrt(maxSquareFactor).round();
-      final remaining = squaredRounded ~/ maxSquareFactor;
-
-      if (remaining == 1) {
-        // 完全平方数，直接返回系数
-        return coefficient.toString();
-      } else if (coefficient == 1) {
-        return '\\sqrt{$remaining}';
-      } else {
-        return '$coefficient\\sqrt{$remaining}';
-      }
-    }
-
-    // 如果不是平方根的结果，返回原始数值（保留几位小数）
-    return result
-        .toStringAsFixed(6)
-        .replaceAll(RegExp(r'\.0+$'), '')
-        .replaceAll(RegExp(r'\.$'), '');
-  }
 
   String _expandExpressions(String input) {
     String result = input;

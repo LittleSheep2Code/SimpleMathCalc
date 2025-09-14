@@ -134,3 +134,41 @@ class Parser {
     }
   }
 }
+
+/// 计算角度表达式（如 30+45 = 75）
+int? evaluateAngleExpression(String expr) {
+  final parts = expr.split('+');
+  int sum = 0;
+  for (final part in parts) {
+    final num = int.tryParse(part.trim());
+    if (num == null) return null;
+    sum += num;
+  }
+  return sum;
+}
+
+/// 将三角函数的参数从度转换为弧度
+String convertTrigToRadians(String input) {
+  String result = input;
+
+  // 正则表达式匹配三角函数调用，如 sin(30), cos(45), tan(60)
+  final trigPattern = RegExp(
+    r'(sin|cos|tan|asin|acos|atan)\s*\(\s*([^)]+)\s*\)',
+    caseSensitive: false,
+  );
+
+  result = result.replaceAllMapped(trigPattern, (match) {
+    final func = match.group(1)!;
+    final arg = match.group(2)!;
+
+    // 如果参数已经是弧度相关的表达式（包含 pi 或 π），则不转换
+    if (arg.contains('pi') || arg.contains('π') || arg.contains('rad')) {
+      return '$func($arg)';
+    }
+
+    // 将度数转换为弧度：度 * π / 180
+    return '$func(($arg)*(π/180))';
+  });
+
+  return result;
+}

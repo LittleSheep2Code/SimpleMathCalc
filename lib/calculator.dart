@@ -1,5 +1,6 @@
 // === 在 abstract class Expr 中添加声明 ===
 import 'dart:math' show sqrt, cos, sin, tan, pow;
+import 'parser.dart';
 
 abstract class Expr {
   Expr simplify();
@@ -687,6 +688,160 @@ _SqrtTerm? _asSqrtTerm(Expr e) {
     }
   }
   return null;
+}
+
+/// 获取精确三角函数结果
+String? getExactTrigResult(String input) {
+  final cleanInput = input.replaceAll(' ', '').toLowerCase();
+
+  // 匹配 sin(角度) 模式
+  final sinMatch = RegExp(r'^sin\((\d+(?:\+\d+)*)\)$').firstMatch(cleanInput);
+  if (sinMatch != null) {
+    final angleExpr = sinMatch.group(1)!;
+    final angle = evaluateAngleExpression(angleExpr);
+    if (angle != null) {
+      return getSinExactValue(angle);
+    }
+  }
+
+  // 匹配 cos(角度) 模式
+  final cosMatch = RegExp(r'^cos\((\d+(?:\+\d+)*)\)$').firstMatch(cleanInput);
+  if (cosMatch != null) {
+    final angleExpr = cosMatch.group(1)!;
+    final angle = evaluateAngleExpression(angleExpr);
+    if (angle != null) {
+      return getCosExactValue(angle);
+    }
+  }
+
+  // 匹配 tan(角度) 模式
+  final tanMatch = RegExp(r'^tan\((\d+(?:\+\d+)*)\)$').firstMatch(cleanInput);
+  if (tanMatch != null) {
+    final angleExpr = tanMatch.group(1)!;
+    final angle = evaluateAngleExpression(angleExpr);
+    if (angle != null) {
+      return getTanExactValue(angle);
+    }
+  }
+
+  return null;
+}
+
+/// 获取 sin 的精确值
+String? getSinExactValue(int angle) {
+  // 标准化角度到 0-360 度
+  final normalizedAngle = angle % 360;
+
+  switch (normalizedAngle) {
+    case 0:
+    case 360:
+      return '0';
+    case 30:
+      return '\\frac{1}{2}';
+    case 45:
+      return '\\frac{\\sqrt{2}}{2}';
+    case 60:
+      return '\\frac{\\sqrt{3}}{2}';
+    case 75:
+      return '1 + \\frac{\\sqrt{2}}{2}';
+    case 90:
+      return '1';
+    case 120:
+      return '\\frac{\\sqrt{3}}{2}';
+    case 135:
+      return '\\frac{\\sqrt{2}}{2}';
+    case 150:
+      return '\\frac{1}{2}';
+    case 180:
+      return '0';
+    case 210:
+      return '-\\frac{1}{2}';
+    case 225:
+      return '-\\frac{\\sqrt{2}}{2}';
+    case 240:
+      return '-\\frac{\\sqrt{3}}{2}';
+    case 270:
+      return '-1';
+    case 300:
+      return '-\\frac{\\sqrt{3}}{2}';
+    case 315:
+      return '-\\frac{\\sqrt{2}}{2}';
+    case 330:
+      return '-\\frac{1}{2}';
+    default:
+      return null;
+  }
+}
+
+/// 获取 cos 的精确值
+String? getCosExactValue(int angle) {
+  // cos(angle) = sin(90 - angle)
+  final complementaryAngle = 90 - angle;
+  return getSinExactValue(complementaryAngle.abs());
+}
+
+/// 获取 tan 的精确值
+String? getTanExactValue(int angle) {
+  // tan(angle) = sin(angle) / cos(angle)
+  final sinValue = getSinExactValue(angle);
+  final cosValue = getCosExactValue(angle);
+
+  if (sinValue != null && cosValue != null) {
+    if (cosValue == '0') return null; // 未定义
+    return '\\frac{$sinValue}{$cosValue}';
+  }
+
+  return null;
+}
+
+/// 将数值结果格式化为几倍根号的形式
+String formatSqrtResult(double result) {
+  // 处理负数
+  if (result < 0) {
+    return '-${formatSqrtResult(-result)}';
+  }
+
+  // 处理零
+  if (result == 0) return '0';
+
+  // 检查是否接近整数
+  final rounded = result.round();
+  if ((result - rounded).abs() < 1e-10) {
+    return rounded.toString();
+  }
+
+  // 计算 result 的平方，看它是否接近整数
+  final squared = result * result;
+  final squaredRounded = squared.round();
+
+  // 如果 squared 接近整数，说明 result 是某个数的平方根
+  if ((squared - squaredRounded).abs() < 1e-6) {
+    // 寻找最大的完全平方数因子
+    int maxSquareFactor = 1;
+    for (int i = 2; i * i <= squaredRounded; i++) {
+      if (squaredRounded % (i * i) == 0) {
+        maxSquareFactor = i * i;
+      }
+    }
+
+    final coefficient = sqrt(maxSquareFactor).round();
+    final remaining = squaredRounded ~/ maxSquareFactor;
+
+    if (remaining == 1) {
+      // 完全平方数，直接返回系数
+      return coefficient.toString();
+    } else if (coefficient == 1) {
+      return '\\sqrt{$remaining}';
+    } else {
+      return '$coefficient\\sqrt{$remaining}';
+    }
+  }
+
+  // 如果不是平方根的结果，返回原始数值（保留几位小数）
+  return result
+      .toStringAsFixed(6)
+      .replaceAll(RegExp(r'\.0+$'), '')
+      .replaceAll(RegExp(r'\.$'), '');
 }
 
 /// 辗转相除法求 gcd
