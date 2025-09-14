@@ -99,6 +99,13 @@ class Parser {
       return TanExpr(inner);
     }
 
+    // 解析变量 (单个字母)
+    if (RegExp(r'[a-zA-Z]').hasMatch(current)) {
+      var varName = current;
+      eat();
+      return VarExpr(varName);
+    }
+
     // 解析整数
     var buf = '';
     while (!isEnd && RegExp(r'\d').hasMatch(current)) {

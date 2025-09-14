@@ -7,6 +7,9 @@ abstract class Expr {
   /// 新增：对表达式进行“求值/数值化”——尽可能把可算的部分算出来
   Expr evaluate();
 
+  /// Substitute variable with value
+  Expr substitute(String varName, Expr value);
+
   @override
   String toString();
 
@@ -28,6 +31,9 @@ class IntExpr extends Expr {
   Expr evaluate() => this;
 
   @override
+  Expr substitute(String varName, Expr value) => this;
+
+  @override
   String toString() => value.toString();
 }
 
@@ -43,7 +49,28 @@ class DoubleExpr extends Expr {
   Expr evaluate() => this;
 
   @override
+  Expr substitute(String varName, Expr value) => this;
+
+  @override
   String toString() => value.toString();
+}
+
+// === VarExpr ===
+class VarExpr extends Expr {
+  final String name;
+  VarExpr(this.name);
+
+  @override
+  Expr simplify() => this;
+
+  @override
+  Expr evaluate() => this;
+
+  @override
+  Expr substitute(String varName, Expr value) => name == varName ? value : this;
+
+  @override
+  String toString() => name;
 }
 
 // === FractionExpr.evaluate ===
@@ -73,6 +100,9 @@ class FractionExpr extends Expr {
 
   @override
   Expr evaluate() => simplify();
+
+  @override
+  Expr substitute(String varName, Expr value) => this;
 
   @override
   String toString() => "$numerator/$denominator";
@@ -151,6 +181,12 @@ class AddExpr extends Expr {
   }
 
   @override
+  Expr substitute(String varName, Expr value) => AddExpr(
+    left.substitute(varName, value),
+    right.substitute(varName, value),
+  );
+
+  @override
   String toString() => "($left + $right)";
 }
 
@@ -212,6 +248,12 @@ class SubExpr extends Expr {
 
     return SubExpr(l, r);
   }
+
+  @override
+  Expr substitute(String varName, Expr value) => SubExpr(
+    left.substitute(varName, value),
+    right.substitute(varName, value),
+  );
 
   @override
   String toString() => "($left - $right)";
@@ -297,6 +339,12 @@ class MulExpr extends Expr {
   }
 
   @override
+  Expr substitute(String varName, Expr value) => MulExpr(
+    left.substitute(varName, value),
+    right.substitute(varName, value),
+  );
+
+  @override
   String toString() => "($left * $right)";
 }
 
@@ -379,6 +427,12 @@ class DivExpr extends Expr {
   }
 
   @override
+  Expr substitute(String varName, Expr value) => DivExpr(
+    left.substitute(varName, value),
+    right.substitute(varName, value),
+  );
+
+  @override
   String toString() => "($left / $right)";
 }
 
@@ -430,6 +484,10 @@ class SqrtExpr extends Expr {
   }
 
   @override
+  Expr substitute(String varName, Expr value) =>
+      SqrtExpr(inner.substitute(varName, value));
+
+  @override
   String toString() => "sqrt($inner)";
 }
 
@@ -455,6 +513,10 @@ class CosExpr extends Expr {
     }
     return CosExpr(i);
   }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      CosExpr(inner.substitute(varName, value));
 
   @override
   String toString() => "cos($inner)";
@@ -484,6 +546,10 @@ class SinExpr extends Expr {
   }
 
   @override
+  Expr substitute(String varName, Expr value) =>
+      SinExpr(inner.substitute(varName, value));
+
+  @override
   String toString() => "sin($inner)";
 }
 
@@ -509,6 +575,10 @@ class TanExpr extends Expr {
     }
     return TanExpr(i);
   }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      TanExpr(inner.substitute(varName, value));
 
   @override
   String toString() => "tan($inner)";

@@ -3,7 +3,8 @@ import 'package:latext/latext.dart';
 import 'package:simple_math_calc/models/calculation_step.dart';
 import 'package:simple_math_calc/solver.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:math_expressions/math_expressions.dart' as math_expressions;
+import 'package:simple_math_calc/calculator.dart';
+import 'package:simple_math_calc/parser.dart';
 import 'dart:math';
 
 class CalculatorHomePage extends StatefulWidget {
@@ -70,11 +71,8 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
       );
 
       // 解析表达式
-      final parser = math_expressions.ShuntingYardParser();
-      final expr = parser.parse(functionExpr);
-
-      // 创建变量 x
-      final x = math_expressions.Variable('x');
+      final parser = Parser(functionExpr);
+      final expr = parser.parse();
 
       // 根据缩放因子动态调整范围和步长
       final range = 10.0 * zoomFactor;
@@ -84,13 +82,15 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
       List<FlSpot> points = [];
       for (double i = -range; i <= range; i += step) {
         try {
-          final context = math_expressions.ContextModel()
-            ..bindVariable(x, math_expressions.Number(i));
-          final evaluator = math_expressions.RealEvaluator(context);
-          final y = evaluator.evaluate(expr);
+          // 替换变量 x 为当前值
+          final substituted = expr.substitute('x', DoubleExpr(i));
+          final evaluated = substituted.evaluate();
 
-          if (y.isFinite && !y.isNaN) {
-            points.add(FlSpot(i, y.toDouble()));
+          if (evaluated is DoubleExpr) {
+            final y = evaluated.value;
+            if (y.isFinite && !y.isNaN) {
+              points.add(FlSpot(i, y));
+            }
           }
         } catch (e) {
           // 跳过无法计算的点
