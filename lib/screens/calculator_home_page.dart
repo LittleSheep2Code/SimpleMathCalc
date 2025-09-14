@@ -21,6 +21,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
 
   CalculationResult? _result;
   bool _isLoading = false;
+  bool _isFunctionMode = false;
   double _zoomFactor = 1.0;
 
   @override
@@ -44,11 +45,12 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
   /// 生成函数图表的点
   List<FlSpot> _generatePlotPoints(String expression, double zoomFactor) {
     try {
-      // 如果是方程，取左边作为函数
-      String functionExpr = expression;
-      if (expression.contains('=')) {
-        functionExpr = expression.split('=')[0].trim();
+      // 只处理 y=... 格式的函数
+      String normalized = expression.replaceAll(' ', '');
+      if (!normalized.toLowerCase().startsWith('y=')) {
+        return [];
       }
+      String functionExpr = normalized.substring(2);
 
       // 如果表达式不包含 x，返回空列表
       if (!functionExpr.contains('x') && !functionExpr.contains('X')) {
@@ -159,7 +161,19 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
     if (_controller.text.isEmpty) {
       return;
     }
+
+    final input = _controller.text.trim();
+    final normalizedInput = input.replaceAll(' ', '');
+    if (normalizedInput.toLowerCase().startsWith('y=')) {
+      setState(() {
+        _isFunctionMode = true;
+        _result = null;
+      });
+      return;
+    }
+
     setState(() {
+      _isFunctionMode = false;
       _isLoading = true;
       _result = null; // 清除上次结果
     });
@@ -195,6 +209,142 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
     setState(() {
       _zoomFactor = (_zoomFactor * 1.25).clamp(0.1, 10.0);
     });
+  }
+
+  // 构建函数图像卡片
+  Widget _buildGraphCard() {
+    return ListView(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: MediaQuery.of(context).padding.bottom + 16,
+        top: 16,
+      ),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Text(
+                        '函数图像',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          onPressed: _zoomIn,
+                          icon: Icon(Icons.zoom_in),
+                          tooltip: '放大',
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        IconButton(
+                          onPressed: _zoomOut,
+                          icon: Icon(Icons.zoom_out),
+                          tooltip: '缩小',
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 340,
+                  child: Builder(
+                    builder: (context) {
+                      final points = _generatePlotPoints(
+                        _controller.text,
+                        _zoomFactor,
+                      );
+                      final bounds = _calculateChartBounds(points, _zoomFactor);
+
+                      return LineChart(
+                        LineChartData(
+                          gridData: FlGridData(show: true),
+                          titlesData: FlTitlesData(
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 80,
+                                getTitlesWidget: (value, meta) =>
+                                    SideTitleWidget(
+                                      axisSide: meta.axisSide,
+                                      child: Text(value.toStringAsFixed(2)),
+                                    ),
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 24,
+                                getTitlesWidget: (value, meta) =>
+                                    SideTitleWidget(
+                                      axisSide: meta.axisSide,
+                                      child: Text(value.toStringAsFixed(2)),
+                                    ),
+                              ),
+                            ),
+                            topTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            rightTitles: AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                          ),
+                          borderData: FlBorderData(
+                            show: true,
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                          ),
+                          lineTouchData: LineTouchData(
+                            enabled: true,
+                            touchTooltipData: LineTouchTooltipData(
+                              getTooltipItems: (touchedSpots) {
+                                return touchedSpots.map((spot) {
+                                  return LineTooltipItem(
+                                    'x = ${spot.x.toStringAsFixed(2)}',
+                                    const TextStyle(color: Colors.white),
+                                  );
+                                }).toList();
+                              },
+                            ),
+                          ),
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: points,
+                              isCurved: true,
+                              color: Theme.of(context).colorScheme.primary,
+                              barWidth: 3,
+                              belowBarData: BarAreaData(show: false),
+                              dotData: FlDotData(show: false),
+                            ),
+                          ],
+                          minX: bounds.minX,
+                          maxX: bounds.maxX,
+                          minY: bounds.minY,
+                          maxY: bounds.maxY,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -240,6 +390,8 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
+                : _isFunctionMode
+                ? _buildGraphCard()
                 : _result == null
                 ? const Center(child: Text('请输入方程开始计算'))
                 : buildResultView(_result!),
@@ -348,129 +500,6 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(left: 4),
-                      child: Text(
-                        '函数图像',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: _zoomIn,
-                          icon: Icon(Icons.zoom_in),
-                          tooltip: '放大',
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        IconButton(
-                          onPressed: _zoomOut,
-                          icon: Icon(Icons.zoom_out),
-                          tooltip: '缩小',
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  height: 340,
-                  child: Builder(
-                    builder: (context) {
-                      final points = _generatePlotPoints(
-                        _controller.text,
-                        _zoomFactor,
-                      );
-                      final bounds = _calculateChartBounds(points, _zoomFactor);
-
-                      return LineChart(
-                        LineChartData(
-                          gridData: FlGridData(show: true),
-                          titlesData: FlTitlesData(
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 40,
-                                getTitlesWidget: (value, meta) =>
-                                    SideTitleWidget(
-                                      axisSide: meta.axisSide,
-                                      child: Text(value.toStringAsFixed(2)),
-                                    ),
-                              ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 30,
-                                getTitlesWidget: (value, meta) =>
-                                    SideTitleWidget(
-                                      axisSide: meta.axisSide,
-                                      child: Text(value.toStringAsFixed(2)),
-                                    ),
-                              ),
-                            ),
-                            topTitles: AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                            rightTitles: AxisTitles(
-                              sideTitles: SideTitles(showTitles: false),
-                            ),
-                          ),
-                          borderData: FlBorderData(
-                            show: true,
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.outline,
-                            ),
-                          ),
-                          lineTouchData: LineTouchData(
-                            enabled: true,
-                            touchTooltipData: LineTouchTooltipData(
-                              getTooltipItems: (touchedSpots) {
-                                return touchedSpots.map((spot) {
-                                  return LineTooltipItem(
-                                    'x = ${spot.x.toStringAsFixed(2)}',
-                                    const TextStyle(color: Colors.white),
-                                  );
-                                }).toList();
-                              },
-                            ),
-                          ),
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: points,
-                              isCurved: true,
-                              color: Theme.of(context).colorScheme.primary,
-                              barWidth: 3,
-                              belowBarData: BarAreaData(show: false),
-                              dotData: FlDotData(show: false),
-                            ),
-                          ],
-                          minX: bounds.minX,
-                          maxX: bounds.maxX,
-                          minY: bounds.minY,
-                          maxY: bounds.maxY,
-                        ),
-                      );
-                    },
                   ),
                 ),
               ],
