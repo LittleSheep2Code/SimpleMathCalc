@@ -105,5 +105,31 @@ void main() {
         reason: '应该提供复数根',
       );
     });
+
+    test('可绘制函数表达式检测', () {
+      // 测试可绘制的函数表达式
+      expect(solver.isGraphableExpression('y=x^2'), true);
+      expect(solver.isGraphableExpression('x^2+2x+1'), true);
+      expect(solver.isGraphableExpression('(x-1)(x+3)'), true);
+
+      // 测试不可绘制的表达式
+      expect(solver.isGraphableExpression('2+3'), false);
+      expect(solver.isGraphableExpression('hello'), false);
+      expect(solver.isGraphableExpression('x^2=4'), false); // 方程而不是函数
+    });
+
+    test('函数表达式预处理', () {
+      // 测试因式展开
+      final expanded = solver.prepareFunctionForGraphing('y=(x-1)(x+3)');
+      expect(expanded, 'x^2+2x-3');
+
+      // 测试已展开的表达式
+      final alreadyExpanded = solver.prepareFunctionForGraphing('x^2+2x+1');
+      expect(alreadyExpanded, 'x^2+2x+1');
+
+      // 测试无y=前缀的表达式
+      final noPrefix = solver.prepareFunctionForGraphing('(x-1)(x+3)');
+      expect(noPrefix, 'x^2+2x-3');
+    });
   });
 }

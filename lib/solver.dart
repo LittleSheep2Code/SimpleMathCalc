@@ -1,9 +1,9 @@
-import 'dart:math';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' show log;
+import 'dart:math' hide log;
 import 'package:rational/rational.dart';
+import 'package:simple_math_calc/calculator.dart';
+import 'package:simple_math_calc/parser.dart';
 import 'models/calculation_step.dart';
-import 'calculator.dart';
-import 'parser.dart';
 
 /// 帮助解析一元一次方程 ax+b=cx+d 的辅助类
 class LinearEquationParts {
@@ -512,6 +512,92 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     }
   }
 
+  /// 检查表达式是否可绘制（包含变量x且可以被求值）
+  bool isGraphableExpression(String expression) {
+    try {
+      // 移除空格并转换为小写
+      String cleanExpr = expression.replaceAll(' ', '').toLowerCase();
+
+      // 如果以 y= 开头，去掉前缀
+      if (cleanExpr.startsWith('y=')) {
+        cleanExpr = cleanExpr.substring(2);
+      }
+
+      // 不能包含等号（方程而不是函数表达式）
+      if (cleanExpr.contains('=')) {
+        return false;
+      }
+
+      // 必须包含变量x
+      if (!cleanExpr.contains('x')) {
+        return false;
+      }
+
+      // 尝试展开表达式（如果包含括号）
+      String processedExpr = cleanExpr;
+      if (processedExpr.contains('(')) {
+        processedExpr = _expandExpressions(processedExpr);
+      }
+
+      // 尝试解析表达式
+      final parser = Parser(processedExpr);
+      final expr = parser.parse();
+
+      // 测试在几个点上是否可以求值
+      final testPoints = [-1.0, 0.0, 1.0];
+      for (final x in testPoints) {
+        try {
+          final substituted = expr.substitute('x', DoubleExpr(x));
+          final evaluated = substituted.evaluate();
+          if (evaluated is DoubleExpr &&
+              evaluated.value.isFinite &&
+              !evaluated.value.isNaN) {
+            // 至少有一个点可以求值就算成功
+            return true;
+          }
+        } catch (e) {
+          // 继续测试其他点
+          continue;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 准备函数表达式用于绘图（展开因式形式）
+  String prepareFunctionForGraphing(String expression) {
+    // 移除空格并转换为小写
+    String cleanExpr = expression.replaceAll(' ', '').toLowerCase();
+
+    // 如果以 y= 开头，去掉前缀
+    if (cleanExpr.startsWith('y=')) {
+      cleanExpr = cleanExpr.substring(2);
+    }
+
+    // 如果表达式包含括号，进行展开
+    if (cleanExpr.contains('(')) {
+      cleanExpr = _expandExpressions(cleanExpr);
+    }
+
+    // 清理格式：移除不必要的.0后缀和简化格式
+    cleanExpr = cleanExpr
+        .replaceAll('.0', '') // 移除所有.0
+        .replaceAll('+0', '') // 移除+0
+        .replaceAll('-0', '') // 移除-0
+        .replaceAll('1x^2', 'x^2') // 1x^2 -> x^2
+        .replaceAll('1x', 'x'); // 1x -> x
+
+    // 移除开头的+号
+    if (cleanExpr.startsWith('+')) {
+      cleanExpr = cleanExpr.substring(1);
+    }
+
+    return cleanExpr;
+  }
+
   /// ---- 辅助函数 ----
 
   String _expandExpressions(String input) {
@@ -554,26 +640,26 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
       if (factorMulMatch != null) {
         final factor1 = factorMulMatch.group(1)!;
         final factor2 = factorMulMatch.group(2)!;
-        debugPrint('Expanding: ($factor1) * ($factor2)');
+        log('Expanding: ($factor1) * ($factor2)');
 
         final coeffs1 = _parsePolynomial(factor1);
         final coeffs2 = _parsePolynomial(factor2);
-        debugPrint('Coeffs1: $coeffs1, Coeffs2: $coeffs2');
+        log('Coeffs1: $coeffs1, Coeffs2: $coeffs2');
 
         final a = coeffs1[1] ?? 0;
         final b = coeffs1[0] ?? 0;
         final c = coeffs2[1] ?? 0;
         final d = coeffs2[0] ?? 0;
-        debugPrint('a=$a, b=$b, c=$c, d=$d');
+        log('a=$a, b=$b, c=$c, d=$d');
 
         final newA = a * c;
         final newB = a * d + b * c;
         final newC = b * d;
-        debugPrint('newA=$newA, newB=$newB, newC=$newC');
+        log('newA=$newA, newB=$newB, newC=$newC');
 
         final expanded =
             '${newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
-        debugPrint('Expanded result: $expanded');
+        log('Expanded result: $expanded');
 
         result = result.replaceFirst(factorMulMatch.group(0)!, expanded);
         iterationCount++;

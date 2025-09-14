@@ -47,7 +47,9 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
 
     final input = _controller.text.trim();
     final normalizedInput = input.replaceAll(' ', '');
-    if (normalizedInput.toLowerCase().startsWith('y=')) {
+
+    // 使用solver检查是否为可绘制的函数表达式
+    if (_solverService.isGraphableExpression(normalizedInput)) {
       setState(() {
         _isFunctionMode = true;
         _result = null;

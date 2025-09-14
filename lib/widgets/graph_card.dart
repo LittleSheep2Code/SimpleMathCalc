@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:simple_math_calc/parser.dart';
 import 'package:simple_math_calc/calculator.dart';
+import 'package:simple_math_calc/solver.dart';
 import 'dart:math';
 
 class GraphCard extends StatefulWidget {
@@ -23,15 +24,15 @@ class GraphCard extends StatefulWidget {
 }
 
 class _GraphCardState extends State<GraphCard> {
+  final SolverService _solverService = SolverService();
+
   /// 生成函数图表的点
   List<FlSpot> _generatePlotPoints(String expression, double zoomFactor) {
     try {
-      // 只处理 y=... 格式的函数
-      String normalized = expression.replaceAll(' ', '');
-      if (!normalized.toLowerCase().startsWith('y=')) {
-        return [];
-      }
-      String functionExpr = normalized.substring(2);
+      // 使用solver准备函数表达式（展开因式形式）
+      String functionExpr = _solverService.prepareFunctionForGraphing(
+        expression,
+      );
 
       // 如果表达式不包含 x，返回空列表
       if (!functionExpr.contains('x') && !functionExpr.contains('X')) {
