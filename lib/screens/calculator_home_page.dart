@@ -48,7 +48,30 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
     final input = _controller.text.trim();
     final normalizedInput = input.replaceAll(' ', '');
 
-    // 使用solver检查是否为可绘制的函数表达式
+    // 如果当前已经是函数模式，保持函数模式
+    if (_isFunctionMode) {
+      // 重新检查表达式是否仍然可绘制（以防用户修改了表达式）
+      if (_solverService.isGraphableExpression(normalizedInput)) {
+        // 保持在函数模式，不做任何改变
+        return;
+      } else {
+        // 表达式不再可绘制，切换回普通模式
+        setState(() {
+          _isFunctionMode = false;
+        });
+      }
+    }
+
+    // 检查是否为函数表达式（优先使用简单y=检测）
+    if (normalizedInput.toLowerCase().startsWith('y=')) {
+      setState(() {
+        _isFunctionMode = true;
+        _result = null;
+      });
+      return;
+    }
+
+    // 备用检查：使用solver进行更复杂的表达式检测
     if (_solverService.isGraphableExpression(normalizedInput)) {
       setState(() {
         _isFunctionMode = true;
@@ -57,6 +80,7 @@ class _CalculatorHomePageState extends State<CalculatorHomePage> {
       return;
     }
 
+    // 普通表达式求解
     setState(() {
       _isFunctionMode = false;
       _isLoading = true;

@@ -43,22 +43,26 @@ class Parser {
   Expr parseMul() {
     var expr = parsePow();
     skipSpaces();
-    while (!isEnd && (current == '*' || current == '/')) {
-      var op = current;
-      eat();
-      var right = parsePow();
-      if (op == '*') {
-        expr = MulExpr(expr, right);
+    while (!isEnd &&
+        (current == '*' ||
+            current == '/' ||
+            current == '%' ||
+            RegExp(r'[a-zA-Z\d]').hasMatch(current) ||
+            current == '(')) {
+      if (current == '*' || current == '/') {
+        var op = current;
+        eat();
+        var right = parsePow();
+        expr = op == '*' ? MulExpr(expr, right) : DivExpr(expr, right);
+      } else if (current == '%') {
+        eat();
+        expr = PercentExpr(expr);
       } else {
-        expr = DivExpr(expr, right);
+        // implicit multiplication
+        var right = parsePow();
+        expr = MulExpr(expr, right);
       }
       skipSpaces();
-    }
-    // Handle percentage operator
-    skipSpaces();
-    if (!isEnd && current == '%') {
-      eat();
-      expr = PercentExpr(expr);
     }
     return expr;
   }

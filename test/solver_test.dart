@@ -130,6 +130,10 @@ void main() {
       // 测试无y=前缀的表达式
       final noPrefix = solver.prepareFunctionForGraphing('(x-1)(x+3)');
       expect(noPrefix, 'x^2+2x-3');
+
+      // 测试百分比表达式
+      final percentExpr = solver.prepareFunctionForGraphing('y=80%x');
+      expect(percentExpr, '80%x');
     });
   });
 }

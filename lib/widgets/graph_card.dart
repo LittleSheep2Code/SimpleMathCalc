@@ -54,6 +54,12 @@ class _GraphCardState extends State<GraphCard> {
         (match) => '${match.group(1)}*${match.group(2)}',
       );
 
+      // 在 % 和变量或数字之间插入乘号 (如 80%x -> 80%*x)
+      functionExpr = functionExpr.replaceAllMapped(
+        RegExp(r'%([a-zA-Z\d])'),
+        (match) => '%*${match.group(1)}',
+      );
+
       // 解析表达式
       final parser = Parser(functionExpr);
       final expr = parser.parse();
