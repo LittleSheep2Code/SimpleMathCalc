@@ -1,5 +1,5 @@
 // === 在 abstract class Expr 中添加声明 ===
-import 'dart:math' show sqrt, cos, sin, tan, pow;
+import 'dart:math' show sqrt, cos, sin, tan, pow, log, exp, asin, acos, atan;
 import 'parser.dart';
 
 abstract class Expr {
@@ -621,8 +621,9 @@ class PowExpr extends Expr {
     // 1^x = 1
     if (l is IntExpr && l.value == 1) return IntExpr(1);
     // 0^x = 0 (for x != 0)
-    if (l is IntExpr && l.value == 0 && !(r is IntExpr && r.value == 0))
+    if (l is IntExpr && l.value == 0 && !(r is IntExpr && r.value == 0)) {
       return IntExpr(0);
+    }
 
     // If both are numbers, compute
     if (l is IntExpr && r is IntExpr) {
@@ -667,6 +668,192 @@ class PowExpr extends Expr {
 
     return '$base^{$rightStr}';
   }
+}
+
+// === LogExpr ===
+class LogExpr extends Expr {
+  final Expr inner;
+  LogExpr(this.inner);
+
+  @override
+  Expr simplify() => LogExpr(inner.simplify());
+
+  @override
+  Expr evaluate() {
+    var i = inner.evaluate();
+    if (i is IntExpr) {
+      return DoubleExpr(log(i.value.toDouble()));
+    }
+    if (i is FractionExpr) {
+      return DoubleExpr(log(i.numerator / i.denominator));
+    }
+    if (i is DoubleExpr) {
+      return DoubleExpr(log(i.value));
+    }
+    return LogExpr(i);
+  }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      LogExpr(inner.substitute(varName, value));
+
+  @override
+  String toString() => "log($inner)";
+}
+
+// === ExpExpr ===
+class ExpExpr extends Expr {
+  final Expr inner;
+  ExpExpr(this.inner);
+
+  @override
+  Expr simplify() => ExpExpr(inner.simplify());
+
+  @override
+  Expr evaluate() {
+    var i = inner.evaluate();
+    if (i is IntExpr) {
+      return DoubleExpr(exp(i.value.toDouble()));
+    }
+    if (i is FractionExpr) {
+      return DoubleExpr(exp(i.numerator / i.denominator));
+    }
+    if (i is DoubleExpr) {
+      return DoubleExpr(exp(i.value));
+    }
+    return ExpExpr(i);
+  }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      ExpExpr(inner.substitute(varName, value));
+
+  @override
+  String toString() => "exp($inner)";
+}
+
+// === AsinExpr ===
+class AsinExpr extends Expr {
+  final Expr inner;
+  AsinExpr(this.inner);
+
+  @override
+  Expr simplify() => AsinExpr(inner.simplify());
+
+  @override
+  Expr evaluate() {
+    var i = inner.evaluate();
+    if (i is IntExpr) {
+      return DoubleExpr(asin(i.value.toDouble()));
+    }
+    if (i is FractionExpr) {
+      return DoubleExpr(asin(i.numerator / i.denominator));
+    }
+    if (i is DoubleExpr) {
+      return DoubleExpr(asin(i.value));
+    }
+    return AsinExpr(i);
+  }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      AsinExpr(inner.substitute(varName, value));
+
+  @override
+  String toString() => "asin($inner)";
+}
+
+// === AcosExpr ===
+class AcosExpr extends Expr {
+  final Expr inner;
+  AcosExpr(this.inner);
+
+  @override
+  Expr simplify() => AcosExpr(inner.simplify());
+
+  @override
+  Expr evaluate() {
+    var i = inner.evaluate();
+    if (i is IntExpr) {
+      return DoubleExpr(acos(i.value.toDouble()));
+    }
+    if (i is FractionExpr) {
+      return DoubleExpr(acos(i.numerator / i.denominator));
+    }
+    if (i is DoubleExpr) {
+      return DoubleExpr(acos(i.value));
+    }
+    return AcosExpr(i);
+  }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      AcosExpr(inner.substitute(varName, value));
+
+  @override
+  String toString() => "acos($inner)";
+}
+
+// === AtanExpr ===
+class AtanExpr extends Expr {
+  final Expr inner;
+  AtanExpr(this.inner);
+
+  @override
+  Expr simplify() => AtanExpr(inner.simplify());
+
+  @override
+  Expr evaluate() {
+    var i = inner.evaluate();
+    if (i is IntExpr) {
+      return DoubleExpr(atan(i.value.toDouble()));
+    }
+    if (i is FractionExpr) {
+      return DoubleExpr(atan(i.numerator / i.denominator));
+    }
+    if (i is DoubleExpr) {
+      return DoubleExpr(atan(i.value));
+    }
+    return AtanExpr(i);
+  }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      AtanExpr(inner.substitute(varName, value));
+
+  @override
+  String toString() => "atan($inner)";
+}
+
+// === AbsExpr ===
+class AbsExpr extends Expr {
+  final Expr inner;
+  AbsExpr(this.inner);
+
+  @override
+  Expr simplify() => AbsExpr(inner.simplify());
+
+  @override
+  Expr evaluate() {
+    var i = inner.evaluate();
+    if (i is IntExpr) {
+      return IntExpr(i.value.abs());
+    }
+    if (i is FractionExpr) {
+      return FractionExpr(i.numerator.abs(), i.denominator);
+    }
+    if (i is DoubleExpr) {
+      return DoubleExpr(i.value.abs());
+    }
+    return AbsExpr(i);
+  }
+
+  @override
+  Expr substitute(String varName, Expr value) =>
+      AbsExpr(inner.substitute(varName, value));
+
+  @override
+  String toString() => "|$inner|";
 }
 
 // === 辅助：识别 a * sqrt(X) 形式 ===

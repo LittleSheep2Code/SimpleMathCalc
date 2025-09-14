@@ -62,76 +62,121 @@ class Parser {
 
   Expr parseAtom() {
     skipSpaces();
+    bool negative = false;
+    if (current == '-') {
+      negative = true;
+      eat();
+      skipSpaces();
+    }
+    Expr expr;
     if (current == '(') {
       eat();
-      var expr = parse();
+      expr = parse();
       if (current != ')') throw Exception("缺少 )");
       eat();
-      return expr;
-    }
-
-    if (input.startsWith("sqrt", pos)) {
+    } else if (input.startsWith("sqrt", pos)) {
       pos += 4;
       if (current != '(') throw Exception("sqrt 缺少 (");
       eat();
       var inner = parse();
       if (current != ')') throw Exception("sqrt 缺少 )");
       eat();
-      return SqrtExpr(inner);
-    }
-
-    if (input.startsWith("cos", pos)) {
+      expr = SqrtExpr(inner);
+    } else if (input.startsWith("cos", pos)) {
       pos += 3;
       if (current != '(') throw Exception("cos 缺少 (");
       eat();
       var inner = parse();
       if (current != ')') throw Exception("cos 缺少 )");
       eat();
-      return CosExpr(inner);
-    }
-
-    if (input.startsWith("sin", pos)) {
+      expr = CosExpr(inner);
+    } else if (input.startsWith("sin", pos)) {
       pos += 3;
       if (current != '(') throw Exception("sin 缺少 (");
       eat();
       var inner = parse();
       if (current != ')') throw Exception("sin 缺少 )");
       eat();
-      return SinExpr(inner);
-    }
-
-    if (input.startsWith("tan", pos)) {
+      expr = SinExpr(inner);
+    } else if (input.startsWith("tan", pos)) {
       pos += 3;
       if (current != '(') throw Exception("tan 缺少 (");
       eat();
       var inner = parse();
       if (current != ')') throw Exception("tan 缺少 )");
       eat();
-      return TanExpr(inner);
-    }
-
-    // 解析变量 (单个字母)
-    if (RegExp(r'[a-zA-Z]').hasMatch(current)) {
+      expr = TanExpr(inner);
+    } else if (input.startsWith("log", pos)) {
+      pos += 3;
+      if (current != '(') throw Exception("log 缺少 (");
+      eat();
+      var inner = parse();
+      if (current != ')') throw Exception("log 缺少 )");
+      eat();
+      expr = LogExpr(inner);
+    } else if (input.startsWith("exp", pos)) {
+      pos += 3;
+      if (current != '(') throw Exception("exp 缺少 (");
+      eat();
+      var inner = parse();
+      if (current != ')') throw Exception("exp 缺少 )");
+      eat();
+      expr = ExpExpr(inner);
+    } else if (input.startsWith("asin", pos)) {
+      pos += 4;
+      if (current != '(') throw Exception("asin 缺少 (");
+      eat();
+      var inner = parse();
+      if (current != ')') throw Exception("asin 缺少 )");
+      eat();
+      expr = AsinExpr(inner);
+    } else if (input.startsWith("acos", pos)) {
+      pos += 4;
+      if (current != '(') throw Exception("acos 缺少 (");
+      eat();
+      var inner = parse();
+      if (current != ')') throw Exception("acos 缺少 )");
+      eat();
+      expr = AcosExpr(inner);
+    } else if (input.startsWith("atan", pos)) {
+      pos += 4;
+      if (current != '(') throw Exception("atan 缺少 (");
+      eat();
+      var inner = parse();
+      if (current != ')') throw Exception("atan 缺少 )");
+      eat();
+      expr = AtanExpr(inner);
+    } else if (current == '|') {
+      eat();
+      var inner = parse();
+      if (current != '|') throw Exception("abs 缺少 |");
+      eat();
+      expr = AbsExpr(inner);
+    } else if (RegExp(r'[a-zA-Z]').hasMatch(current)) {
       var varName = current;
       eat();
-      return VarExpr(varName);
-    }
-
-    // 解析数字 (整数或小数)
-    var buf = '';
-    bool hasDot = false;
-    while (!isEnd &&
-        (RegExp(r'\d').hasMatch(current) || (!hasDot && current == '.'))) {
-      if (current == '.') hasDot = true;
-      buf += current;
-      eat();
-    }
-    if (buf.isEmpty) throw Exception("无法解析: $current");
-    if (hasDot) {
-      return DoubleExpr(double.parse(buf));
+      expr = VarExpr(varName);
     } else {
-      return IntExpr(int.parse(buf));
+      // 解析数字 (整数或小数)
+      var buf = '';
+      bool hasDot = false;
+      while (!isEnd &&
+          (RegExp(r'\d').hasMatch(current) || (!hasDot && current == '.'))) {
+        if (current == '.') hasDot = true;
+        buf += current;
+        eat();
+      }
+      if (buf.isEmpty) throw Exception("无法解析: $current");
+      if (hasDot) {
+        expr = DoubleExpr(double.parse(buf));
+      } else {
+        expr = IntExpr(int.parse(buf));
+      }
     }
+    if (negative) {
+      expr = SubExpr(IntExpr(0), expr);
+    }
+    return expr;
   }
 }
 

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:rational/rational.dart';
 import 'models/calculation_step.dart';
 import 'calculator.dart';
@@ -553,26 +554,26 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
       if (factorMulMatch != null) {
         final factor1 = factorMulMatch.group(1)!;
         final factor2 = factorMulMatch.group(2)!;
-        print('Expanding: ($factor1) * ($factor2)');
+        debugPrint('Expanding: ($factor1) * ($factor2)');
 
         final coeffs1 = _parsePolynomial(factor1);
         final coeffs2 = _parsePolynomial(factor2);
-        print('Coeffs1: $coeffs1, Coeffs2: $coeffs2');
+        debugPrint('Coeffs1: $coeffs1, Coeffs2: $coeffs2');
 
         final a = coeffs1[1] ?? 0;
         final b = coeffs1[0] ?? 0;
         final c = coeffs2[1] ?? 0;
         final d = coeffs2[0] ?? 0;
-        print('a=$a, b=$b, c=$c, d=$d');
+        debugPrint('a=$a, b=$b, c=$c, d=$d');
 
         final newA = a * c;
         final newB = a * d + b * c;
         final newC = b * d;
-        print('newA=$newA, newB=$newB, newC=$newC');
+        debugPrint('newA=$newA, newB=$newB, newC=$newC');
 
         final expanded =
             '${newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
-        print('Expanded result: $expanded');
+        debugPrint('Expanded result: $expanded');
 
         result = result.replaceFirst(factorMulMatch.group(0)!, expanded);
         iterationCount++;
@@ -1033,7 +1034,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
         if (simplifiedB == 0) {
           // Just the sqrt part with correct sign
-          return isPlus ? '$sqrtExpr' : '-$sqrtExpr';
+          return isPlus ? sqrtExpr : '-$sqrtExpr';
         } else if (simplifiedB == 1) {
           // +1 * sqrt part
           return isPlus ? '1 + $sqrtExpr' : '1 - $sqrtExpr';
@@ -1052,11 +1053,11 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         }
       } else {
         // Cannot simplify, use fraction form
-        final bStr = b > 0 ? '${bInt}' : '(${bInt})';
+        final bStr = b > 0 ? '$bInt' : '($bInt)';
         final signStr = isPlus ? '+' : '-';
         final numerator = b > 0
             ? '-$bStr $signStr $sqrtExpr'
-            : '(${bInt}) $signStr $sqrtExpr';
+            : '($bInt) $signStr $sqrtExpr';
 
         if (denominator == 2) {
           return '\\frac{$numerator}{2}';
