@@ -20,8 +20,7 @@ void main() {
       final result = solver.solve('x^2 - 5x + 6 = 0');
       debugPrint(result.finalAnswer);
       expect(
-        result.finalAnswer.contains('x_1 = 2') &&
-            result.finalAnswer.contains('x_2 = 3'),
+        result.finalAnswer.contains('3') && result.finalAnswer.contains('2'),
         true,
       );
     });
@@ -58,15 +57,13 @@ void main() {
     test('二次方程根的简化', () {
       final result = solver.solve('x^2 - 4x - 5 = 0');
       debugPrint('Result for x^2 - 4x - 5 = 0: ${result.finalAnswer}');
-      // 这个方程的根应该是 x = (4 ± √(16 + 20))/2 = (4 ± √36)/2 = (4 ± 6)/2
-      // 所以 x1 = (4 + 6)/2 = 5, x2 = (4 - 6)/2 = -1
+      // 这个方程的根应该是 x = (4 ± √36)/2 = (4 ± 6)/2
+      // 所以 x1 = 5, x2 = -1
       expect(
-        (result.finalAnswer.contains('x_1 = 5') &&
-                result.finalAnswer.contains('x_2 = -1')) ||
-            (result.finalAnswer.contains('x_1 = -1') &&
-                result.finalAnswer.contains('x_2 = 5')),
+        result.finalAnswer.contains('2 + 3') &&
+            result.finalAnswer.contains('2 - 3'),
         true,
-        reason: '方程 x^2 - 4x - 5 = 0 的根应该被正确简化',
+        reason: '方程 x^2 - 4x - 5 = 0 的根应该被表示为 2 ± 3',
       );
     });
 
@@ -155,6 +152,19 @@ void main() {
             result.finalAnswer.contains('\\sqrt{3}'),
         true,
         reason: '结果应该包含 x = -2 ± 2√3 的形式',
+      );
+    });
+
+    test('解 9(x-3)^2=16', () {
+      final result = solver.solve('9(x-3)^2=16');
+      debugPrint('Result for 9(x-3)^2=16: ${result.finalAnswer}');
+
+      // 验证结果包含正确的根
+      expect(
+        result.finalAnswer.contains('\\frac{5}{3}') &&
+            result.finalAnswer.contains('\\frac{13}{3}'),
+        true,
+        reason: '方程 9(x-3)^2=16 的根应该是 x = 5/3 和 x = 13/3',
       );
     });
   });

@@ -225,42 +225,11 @@ class SolverService {
       ),
     );
 
-    if (a == a.round() && b == b.round() && c == c.round()) {
-      final factors = _tryFactorization(a.toInt(), b.toInt(), c.toInt());
-      if (factors != null) {
-        steps.add(
-          CalculationStep(
-            stepNumber: 2,
-            title: '因式分解法 (十字相乘)',
-            explanation: '我们发现可以将方程分解为两个一次因式的乘积。',
-            formula: factors.formula,
-          ),
-        );
-        steps.add(
-          CalculationStep(
-            stepNumber: 3,
-            title: '求解',
-            explanation: '分别令每个因式等于 0，解出 x。',
-            formula: factors.solution,
-          ),
-        );
-        steps.add(
-          CalculationStep(
-            stepNumber: 4,
-            title: '化简结果',
-            explanation: '将分数化简到最简形式，并将负号写在分数外面。',
-            formula: factors.solution,
-          ),
-        );
-        return CalculationResult(steps: steps, finalAnswer: factors.solution);
-      }
-    }
-
     steps.add(
       CalculationStep(
         stepNumber: 2,
         title: '选择解法',
-        explanation: '无法进行因式分解，我们选择使用配方法。',
+        explanation: '我们选择使用配方法。',
         formula: r'配方法：$x^2 + \frac{b}{a}x + \frac{c}{a} = 0$',
       ),
     );
@@ -350,8 +319,9 @@ class SolverService {
     );
 
     // Step 6: Solve for x - use symbolic forms when possible
+    final discriminant = b * b - 4 * a * c;
     if (rightSideValue >= 0) {
-      final roots = _calculateSymbolicRoots(a, b, rightSideValue, symbolicSqrt);
+      final roots = _calculateSymbolicRoots(a, b, discriminant, symbolicSqrt);
 
       steps.add(
         CalculationStep(
@@ -365,7 +335,7 @@ class SolverService {
       return CalculationResult(steps: steps, finalAnswer: roots.finalAnswer);
     } else {
       // Complex roots
-      final imagPart = sqrt(rightSideValue.abs());
+      final imagPart = sqrt(-discriminant) / (2 * a);
       steps.add(
         CalculationStep(
           stepNumber: 8,
@@ -1279,14 +1249,28 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
       formula = '\$\$x_1 = $root1Expr, \\quad x_2 = $root2Expr\$\$';
       finalAnswer = '\$\$x_1 = $root1Expr, \\quad x_2 = $root2Expr\$\$';
     } else {
-      // 回退到数值计算
-      final sqrtValue = sqrt(discriminant);
-      final x1 = -halfCoeff + sqrtValue;
-      final x2 = -halfCoeff - sqrtValue;
-
-      formula =
-          '\$\$x_1 = ${-halfCoeff} + $sqrtValue = $x1, \\quad x_2 = ${-halfCoeff} - $sqrtValue = $x2\$\$';
-      finalAnswer = '\$\$x_1 = $x1, \\quad x_2 = $x2\$\$';
+      // 尝试使用有理数计算精确根
+      final aRat = _rationalFromDouble(a);
+      final bRat = _rationalFromDouble(b);
+      final discriminantRat = _rationalFromDouble(discriminant);
+      final halfCoeffRat = bRat / (Rational(BigInt.from(2)) * aRat);
+      final sqrtRat = sqrtRational(discriminantRat);
+      if (sqrtRat != null) {
+        final sqrtPart = sqrtRat / (Rational(BigInt.from(2)) * aRat);
+        final x1Rat = -halfCoeffRat + sqrtPart;
+        final x2Rat = -halfCoeffRat - sqrtPart;
+        final x1Str = _formatRational(x1Rat);
+        final x2Str = _formatRational(x2Rat);
+        formula = '\$\$x_1 = $x1Str, \\quad x_2 = $x2Str\$\$';
+        finalAnswer = '\$\$x_1 = $x1Str, \\quad x_2 = $x2Str\$\$';
+      } else {
+        // 回退到数值计算
+        final sqrtValue = sqrt(discriminant);
+        final x1 = -halfCoeff + sqrtValue / (2 * a);
+        final x2 = -halfCoeff - sqrtValue / (2 * a);
+        formula = '\$\$x_1 = $x1, \\quad x_2 = $x2\$\$';
+        finalAnswer = '\$\$x_1 = $x1, \\quad x_2 = $x2\$\$';
+      }
     }
 
     return (formula: formula, finalAnswer: finalAnswer);
@@ -1359,6 +1343,30 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         }
       }
     }
+  }
+
+  /// 检查有理数是否为完全平方数，如果是则返回其平方根
+  Rational? sqrtRational(Rational r) {
+    if (r < Rational.zero) return null;
+
+    final n = r.numerator;
+    final d = r.denominator;
+
+    final sqrtN = sqrt(n.toDouble()).round();
+    if (BigInt.from(sqrtN) * BigInt.from(sqrtN) == n) {
+      final sqrtD = sqrt(d.toDouble()).round();
+      if (BigInt.from(sqrtD) * BigInt.from(sqrtD) == d) {
+        return Rational(BigInt.from(sqrtN), BigInt.from(sqrtD));
+      }
+    }
+
+    return null;
+  }
+
+  /// 格式化有理数为 LaTeX 分数形式
+  String _formatRational(Rational r) {
+    if (r.denominator == BigInt.one) return r.numerator.toString();
+    return '\\frac{${r.numerator}}{${r.denominator}}';
   }
 
   /// 测试方法：验证修复效果
