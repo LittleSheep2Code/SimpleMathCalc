@@ -189,22 +189,21 @@ class SolverService {
     // Keep original equation for display
     final originalEquation = _formatOriginalEquation(input);
 
-    // Parse coefficients symbolically
-    final leftCoeffsSymbolic = _parsePolynomialSymbolic(eqParts[0]);
-    final rightCoeffsSymbolic = _parsePolynomialSymbolic(eqParts[1]);
-
-    final aSymbolic = _subtractCoefficients(
-      leftCoeffsSymbolic[2] ?? '0',
-      rightCoeffsSymbolic[2] ?? '0',
-    );
-    final bSymbolic = _subtractCoefficients(
-      leftCoeffsSymbolic[1] ?? '0',
-      rightCoeffsSymbolic[1] ?? '0',
-    );
-    final cSymbolic = _subtractCoefficients(
-      leftCoeffsSymbolic[0] ?? '0',
-      rightCoeffsSymbolic[0] ?? '0',
-    );
+    // Parse coefficients symbolically (kept for potential future use)
+    // final leftCoeffsSymbolic = _parsePolynomialSymbolic(eqParts[0]);
+    // final rightCoeffsSymbolic = _parsePolynomialSymbolic(eqParts[1]);
+    // final aSymbolic = _subtractCoefficients(
+    //   leftCoeffsSymbolic[2] ?? '0',
+    //   rightCoeffsSymbolic[2] ?? '0',
+    // );
+    // final bSymbolic = _subtractCoefficients(
+    //   leftCoeffsSymbolic[1] ?? '0',
+    //   rightCoeffsSymbolic[1] ?? '0',
+    // );
+    // final cSymbolic = _subtractCoefficients(
+    //   leftCoeffsSymbolic[0] ?? '0',
+    //   rightCoeffsSymbolic[0] ?? '0',
+    // );
 
     // Also get numeric values for calculations
     final leftCoeffs = _parsePolynomial(eqParts[0]);
@@ -288,9 +287,6 @@ class SolverService {
 
     // Step 2: Move constant term to the other side
     final constantTerm = c / a;
-    final constantStr = constantTerm >= 0
-        ? '+${constantTerm}'
-        : constantTerm.toString();
 
     steps.add(
       CalculationStep(
@@ -1023,187 +1019,6 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
   int gcd(int a, int b) => b == 0 ? a : gcd(b, a % b);
 
-  /// 格式化 Rational 值的平方根表达式，保持符号形式
-  String _formatSqrtFromRational(Rational value) {
-    if (value == Rational.zero) return '0';
-
-    // 处理负数（用于复数根）
-    if (value < Rational.zero) {
-      return '\\sqrt{${(-value).toBigInt()}}';
-    }
-
-    // 尝试将 Rational 转换为完全平方数的形式
-    // 例如: 4/9 -> 2/3, 9/4 -> 3/2, 25/16 -> 5/4 等
-
-    // 首先简化分数
-    final simplified = value;
-
-    // 检查分子和分母是否都是完全平方数
-    final numerator = simplified.numerator;
-    final denominator = simplified.denominator;
-
-    // 寻找分子和分母的平方根因子
-    BigInt sqrtNumerator = _findSquareRootFactor(numerator);
-    BigInt sqrtDenominator = _findSquareRootFactor(denominator);
-
-    // 计算剩余的分子和分母
-    final remainingNumerator = numerator ~/ (sqrtNumerator * sqrtNumerator);
-    final remainingDenominator =
-        denominator ~/ (sqrtDenominator * sqrtDenominator);
-
-    // 构建结果
-    String result = '';
-
-    // 处理系数部分
-    if (sqrtNumerator > BigInt.one || sqrtDenominator > BigInt.one) {
-      if (sqrtNumerator > sqrtDenominator) {
-        final coeff = sqrtNumerator ~/ sqrtDenominator;
-        if (coeff > BigInt.one) {
-          result += '$coeff';
-        }
-      } else if (sqrtDenominator > sqrtNumerator) {
-        // 这会导致分母，需要用分数表示
-        final coeffNum = sqrtNumerator;
-        final coeffDen = sqrtDenominator;
-        if (coeffNum == BigInt.one) {
-          result += '\\frac{1}{$coeffDen}';
-        } else {
-          result += '\\frac{$coeffNum}{$coeffDen}';
-        }
-      }
-    }
-
-    // 处理根号部分
-    if (remainingNumerator == BigInt.one &&
-        remainingDenominator == BigInt.one) {
-      // 没有根号部分
-      if (result.isEmpty) {
-        return '1';
-      }
-    } else if (remainingNumerator == remainingDenominator) {
-      // 根号部分约分后为1
-      if (result.isEmpty) {
-        return '1';
-      }
-    } else {
-      // 需要根号
-      String sqrtContent = '';
-      if (remainingDenominator == BigInt.one) {
-        sqrtContent = '$remainingNumerator';
-      } else {
-        sqrtContent = '\\frac{$remainingNumerator}{$remainingDenominator}';
-      }
-
-      if (result.isEmpty) {
-        result = '\\sqrt{$sqrtContent}';
-      } else {
-        result += '\\sqrt{$sqrtContent}';
-      }
-    }
-
-    return result.isEmpty ? '1' : result;
-  }
-
-  /// 寻找一个大整数的平方根因子
-  BigInt _findSquareRootFactor(BigInt n) {
-    if (n <= BigInt.one) return BigInt.one;
-
-    BigInt factor = BigInt.one;
-    BigInt i = BigInt.two;
-
-    while (i * i <= n) {
-      BigInt count = BigInt.zero;
-      while (n % (i * i) == BigInt.zero) {
-        n = n ~/ (i * i);
-        count += BigInt.one;
-      }
-      if (count > BigInt.zero) {
-        factor = factor * i;
-      }
-      i += BigInt.one;
-    }
-
-    return factor;
-  }
-
-  /// 格式化二次方程的根：(-b ± sqrt(delta)) / (2a)
-  String _formatQuadraticRoot(
-    double b,
-    Rational delta,
-    double denominator,
-    bool isPlus,
-  ) {
-    final denomInt = denominator.toInt();
-    final denomStr = denominator == 2 ? '2' : denominator.toString();
-
-    // Format sqrt(delta) symbolically using the Rational value
-    final sqrtExpr = _formatSqrtFromRational(delta);
-
-    if (b == 0) {
-      // 简化为 ±sqrt(delta)/denominator
-      if (denominator == 2) {
-        return isPlus ? '\\frac{$sqrtExpr}{2}' : '-\\frac{$sqrtExpr}{2}';
-      } else {
-        return isPlus
-            ? '\\frac{$sqrtExpr}{$denomStr}'
-            : '-\\frac{$sqrtExpr}{$denomStr}';
-      }
-    } else {
-      // 完整的表达式：(-b ± sqrt(delta))/denominator
-      final bInt = b.toInt();
-
-      // Check if b is divisible by denominator for simplification
-      if (bInt % denomInt == 0) {
-        // Can simplify: b/denominator becomes integer
-        final simplifiedB = bInt ~/ denomInt;
-
-        if (simplifiedB == 0) {
-          // Just the sqrt part with correct sign
-          return isPlus ? sqrtExpr : '-$sqrtExpr';
-        } else if (simplifiedB == 1) {
-          // +1 * sqrt part
-          return isPlus ? '1 + $sqrtExpr' : '1 - $sqrtExpr';
-        } else if (simplifiedB == -1) {
-          // -1 * sqrt part
-          return isPlus ? '-1 + $sqrtExpr' : '-1 - $sqrtExpr';
-        } else if (simplifiedB > 0) {
-          // Positive coefficient
-          return isPlus
-              ? '$simplifiedB + $sqrtExpr'
-              : '$simplifiedB - $sqrtExpr';
-        } else {
-          // Negative coefficient
-          final absB = (-simplifiedB).toString();
-          return isPlus ? '-$absB + $sqrtExpr' : '-$absB - $sqrtExpr';
-        }
-      } else {
-        // Cannot simplify, use fraction form
-        final bStr = b > 0 ? '$bInt' : '($bInt)';
-        final signStr = isPlus ? '+' : '-';
-        final numerator = b > 0
-            ? '-$bStr $signStr $sqrtExpr'
-            : '($bInt) $signStr $sqrtExpr';
-
-        if (denominator == 2) {
-          return '\\frac{$numerator}{2}';
-        } else {
-          return '\\frac{$numerator}{$denomStr}';
-        }
-      }
-    }
-  }
-
-  /// 格式化复数根的虚部：sqrt(-delta)/(2a)
-  String _formatImaginaryPart(String sqrtExpr, double denominator) {
-    final denomStr = denominator == 2 ? '2' : denominator.toString();
-
-    if (denominator == 2) {
-      return '\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{2}i';
-    } else {
-      return '\\frac{\\sqrt{${sqrtExpr.replaceAll('\\sqrt{', '').replaceAll('}', '')}}}{$denomStr}i';
-    }
-  }
-
   /// 格式化原始方程，保持符号形式
   String _formatOriginalEquation(String input) {
     // Parse the equation and convert to LaTeX
@@ -1363,181 +1178,6 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     result = result.replaceAll('--', '+');
 
     return result;
-  }
-
-  /// 解析多项式，保持符号形式
-  Map<int, String> _parsePolynomialSymbolic(String side) {
-    final coeffs = <int, String>{};
-
-    // Use a simpler approach: split by terms and parse each term individually
-    var s = side.replaceAll(' ', ''); // Remove spaces
-    if (!s.startsWith('+') && !s.startsWith('-')) {
-      s = '+$s';
-    }
-
-    // Split by + and - but be more careful about parentheses and functions
-    final terms = <String>[];
-    int start = 0;
-    int parenDepth = 0;
-
-    for (int i = 0; i < s.length; i++) {
-      final char = s[i];
-
-      if (char == '(') {
-        parenDepth++;
-      } else if (char == ')') {
-        parenDepth--;
-      }
-
-      // Only split on + or - when not inside parentheses
-      if (parenDepth == 0 && (char == '+' || char == '-') && i > start) {
-        terms.add(s.substring(start, i));
-        start = i;
-      }
-    }
-    terms.add(s.substring(start));
-
-    for (final term in terms) {
-      if (term.isEmpty) continue;
-
-      // Parse each term
-      final termPattern = RegExp(r'^([+-]?)(.*?)x(?:\^(\d+))?$|^([+-]?)(.*?)$');
-      final match = termPattern.firstMatch(term);
-
-      if (match != null) {
-        if (match.group(5) != null) {
-          // Constant term
-          final sign = match.group(4) ?? '+';
-          final value = match.group(5)!;
-          final coeffStr = sign == '+' && value.isNotEmpty
-              ? value
-              : '$sign$value';
-          coeffs[0] = _combineCoefficients(coeffs[0], coeffStr);
-        } else {
-          // x term
-          final sign = match.group(1) ?? '+';
-          final coeffPart = match.group(2) ?? '';
-          final power = match.group(3) != null ? int.parse(match.group(3)!) : 1;
-
-          String coeffStr;
-          if (coeffPart.isEmpty) {
-            coeffStr = sign == '+' ? '1' : '-1';
-          } else {
-            coeffStr = sign == '+' ? coeffPart : '$sign$coeffPart';
-          }
-
-          coeffs[power] = _combineCoefficients(coeffs[power], coeffStr);
-        }
-      }
-    }
-
-    return coeffs;
-  }
-
-  /// 合并系数，保持符号形式
-  String _combineCoefficients(String? existing, String newCoeff) {
-    if (existing == null || existing == '0') return newCoeff;
-    if (newCoeff == '0') return existing;
-
-    // 简化逻辑：如果都是数字，可以相加；否则保持原样
-    final existingNum = double.tryParse(existing);
-    final newNum = double.tryParse(newCoeff);
-
-    if (existingNum != null && newNum != null) {
-      final sum = existingNum + newNum;
-      return sum.toString();
-    }
-
-    // 如果包含符号表达式，直接连接
-    return '$existing+$newCoeff'.replaceAll('+-', '-');
-  }
-
-  /// 减去系数
-  String _subtractCoefficients(String a, String b) {
-    if (a == '0') return b.startsWith('-') ? b.substring(1) : '-$b';
-    if (b == '0') return a;
-
-    final aNum = double.tryParse(a);
-    final bNum = double.tryParse(b);
-
-    if (aNum != null && bNum != null) {
-      final result = aNum - bNum;
-      return result.toString();
-    }
-
-    // 符号表达式相减
-    return '$a-${b.startsWith('-') ? b.substring(1) : b}';
-  }
-
-  /// 计算判别式，保持符号形式
-  String _calculateDeltaSymbolic(String a, String b, String c) {
-    // Delta = b^2 - 4ac
-
-    // 计算 b^2
-    String bSquared;
-    if (b == '0') {
-      bSquared = '0';
-    } else if (b == '1') {
-      bSquared = '1';
-    } else if (b == '-1') {
-      bSquared = '1';
-    } else if (b.startsWith('-')) {
-      final absB = b.substring(1);
-      bSquared = '$absB^2';
-    } else {
-      bSquared = '$b^2';
-    }
-
-    // 计算 4ac
-    String fourAC;
-    if (a == '0' || c == '0') {
-      fourAC = '0';
-    } else {
-      // 处理符号
-      String aCoeff = a;
-      String cCoeff = c;
-
-      // 如果 a 或 c 是负数，需要处理符号
-      bool aNegative = a.startsWith('-');
-      bool cNegative = c.startsWith('-');
-
-      if (aNegative) aCoeff = a.substring(1);
-      if (cNegative) cCoeff = c.substring(1);
-
-      String acProduct;
-      if (aCoeff == '1' && cCoeff == '1') {
-        acProduct = '1';
-      } else if (aCoeff == '1') {
-        acProduct = cCoeff;
-      } else if (cCoeff == '1') {
-        acProduct = aCoeff;
-      } else {
-        acProduct = '$aCoeff \\cdot $cCoeff';
-      }
-
-      // 确定 4ac 的符号
-      bool productNegative = aNegative != cNegative;
-      String fourACValue = '4 \\cdot $acProduct';
-
-      if (productNegative) {
-        fourAC = '-$fourACValue';
-      } else {
-        fourAC = fourACValue;
-      }
-    }
-
-    // 计算 Delta = b^2 - 4ac
-    if (bSquared == '0' && fourAC == '0') {
-      return '0';
-    } else if (bSquared == '0') {
-      return fourAC.startsWith('-') ? fourAC.substring(1) : '-$fourAC';
-    } else if (fourAC == '0') {
-      return bSquared;
-    } else {
-      String sign = fourAC.startsWith('-') ? '+' : '-';
-      String absFourAC = fourAC.startsWith('-') ? fourAC.substring(1) : fourAC;
-      return '$bSquared $sign $absFourAC';
-    }
   }
 
   Rational _rationalFromDouble(double value, {int maxPrecision = 12}) {
