@@ -261,93 +261,129 @@ class SolverService {
       CalculationStep(
         stepNumber: 2,
         title: '选择解法',
-        explanation: '无法进行因式分解，我们选择使用求根公式法。',
-        formula: '\$\$\\Delta = b^2 - 4ac\$\$',
+        explanation: '无法进行因式分解，我们选择使用配方法。',
+        formula: r'配方法：$x^2 + \frac{b}{a}x + \frac{c}{a} = 0$',
       ),
     );
 
-    // Calculate delta symbolically
-    final deltaSymbolic = _calculateDeltaSymbolic(
-      aSymbolic,
-      bSymbolic,
-      cSymbolic,
-    );
-    final delta =
-        _rationalFromDouble(b).pow(2) -
-        Rational.fromInt(4) * _rationalFromDouble(a) * _rationalFromDouble(c);
+    // Step 1: Divide by a if a ≠ 1
+    String currentEquation;
+    if (a == 1) {
+      currentEquation =
+          'x^2 ${b >= 0 ? "+" : ""}${b}x ${c >= 0 ? "+" : ""}$c = 0';
+    } else {
+      final aStr = a == -1 ? '-' : a.toString();
+      currentEquation =
+          '\\frac{1}{$aStr}(x^2 ${b >= 0 ? "+" : ""}${b}x ${c >= 0 ? "+" : ""}$c) = 0';
+    }
 
     steps.add(
       CalculationStep(
         stepNumber: 3,
-        title: '计算判别式 (Delta)',
-        explanation: '\$\$\\Delta = b^2 - 4ac = $deltaSymbolic\$\$',
-        formula:
-            '\$\$\\Delta = $deltaSymbolic = ${delta.toDouble().toStringAsFixed(4)}\$\$',
+        title: '方程变形',
+        explanation: a == 1 ? '方程已经是标准形式。' : '将方程两边同时除以 $a。',
+        formula: '\$\$${currentEquation}\$\$',
       ),
     );
 
-    final deltaDouble = delta.toDouble();
-    if (deltaDouble > 0) {
-      // Pass delta directly to maintain precision
-      final x1Expr = _formatQuadraticRoot(-b, delta, 2 * a, true);
-      final x2Expr = _formatQuadraticRoot(-b, delta, 2 * a, false);
+    // Step 2: Move constant term to the other side
+    final constantTerm = c / a;
+    final constantStr = constantTerm >= 0
+        ? '+${constantTerm}'
+        : constantTerm.toString();
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 4,
+        title: '移项',
+        explanation: '将常数项移到方程右边。',
+        formula: '\$\$x^2 ${b >= 0 ? "+" : ""}${b}x = ${-constantTerm}\$\$',
+      ),
+    );
+
+    // Step 3: Complete the square
+    final halfCoeff = b / (2 * a);
+    final completeSquareTerm = halfCoeff * halfCoeff;
+    final completeStr = completeSquareTerm >= 0
+        ? '+${completeSquareTerm}'
+        : completeSquareTerm.toString();
+
+    final xTerm = halfCoeff >= 0 ? "+${halfCoeff}" : halfCoeff.toString();
+    final rightSide = "${-constantTerm} ${completeStr}";
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 5,
+        title: '配方',
+        explanation:
+            '在方程两边同时加上 \$(\\frac{b}{2a})^2 = ${completeSquareTerm}\$ 以配成完全平方。',
+        formula: '\$\$(x ${xTerm})^2 = $rightSide\$\$',
+      ),
+    );
+
+    // Step 4: Simplify right side
+    final rightSideValue = -constantTerm + completeSquareTerm;
+    final rightSideStrValue = rightSideValue >= 0
+        ? rightSideValue.toString()
+        : '(${rightSideValue})';
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 6,
+        title: '化简',
+        explanation: '合并右边的常数项。',
+        formula:
+            '\$\$(x ${halfCoeff >= 0 ? "+" : ""}${halfCoeff})^2 = $rightSideStrValue\$\$',
+      ),
+    );
+
+    // Step 5: Take square root - check for symbolic representation
+    final symbolicSqrt = _getSymbolicSquareRoot(rightSideValue);
+    final sqrtStr = rightSideValue >= 0
+        ? (symbolicSqrt ?? sqrt(rightSideValue.abs()).toString())
+        : '${sqrt(rightSideValue.abs()).toString()}i';
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 7,
+        title: '开方',
+        explanation: '对方程两边同时开平方。',
+        formula:
+            '\$\$x ${halfCoeff >= 0 ? "+" : ""}${halfCoeff} = \\pm $sqrtStr\$\$',
+      ),
+    );
+
+    // Step 6: Solve for x - use symbolic forms when possible
+    if (rightSideValue >= 0) {
+      final roots = _calculateSymbolicRoots(a, b, rightSideValue, symbolicSqrt);
 
       steps.add(
         CalculationStep(
-          stepNumber: 4,
-          title: '应用求根公式',
-          explanation:
-              r'因为 $\Delta > 0$，方程有两个不相等的实数根。公式: $x = \frac{-b \pm \sqrt{\Delta}}{2a}$。',
-          formula: '\$\$x_1 = $x1Expr, \\quad x_2 = $x2Expr\$\$',
+          stepNumber: 8,
+          title: '解出 x',
+          explanation: '分别取正负号，解出 x 的值。',
+          formula: roots.formula,
         ),
       );
-      return CalculationResult(
-        steps: steps,
-        finalAnswer: '\$\$x_1 = $x1Expr, \\quad x_2 = $x2Expr\$\$',
-      );
-    } else if (deltaDouble == 0) {
-      final x = -b / (2 * a);
-      steps.add(
-        CalculationStep(
-          stepNumber: 4,
-          title: '应用求根公式',
-          explanation: r'因为 $\Delta = 0$，方程有两个相等的实数根。',
-          formula: '\$\$x_1 = x_2 = ${x.toStringAsFixed(4)}\$\$',
-        ),
-      );
-      return CalculationResult(
-        steps: steps,
-        finalAnswer: '\$\$x_1 = x_2 = ${x.toStringAsFixed(4)}\$\$',
-      );
+
+      return CalculationResult(steps: steps, finalAnswer: roots.finalAnswer);
     } else {
+      // Complex roots
+      final imagPart = sqrt(rightSideValue.abs());
       steps.add(
         CalculationStep(
-          stepNumber: 4,
-          title: '判断解',
-          explanation: r'因为 $\Delta < 0$，该方程在实数范围内无解，但有虚数解。',
-          formula: '无实数解，有虚数解',
-        ),
-      );
-
-      // For complex roots, we need to handle -delta
-      final negDelta = -delta;
-      final sqrtNegDeltaStr = _formatSqrtFromRational(negDelta);
-      final realPart = -b / (2 * a);
-      final imagPartExpr = _formatImaginaryPart(sqrtNegDeltaStr, 2 * a);
-
-      steps.add(
-        CalculationStep(
-          stepNumber: 5,
-          title: '计算虚数根',
-          explanation: '使用求根公式计算虚数根。',
-          formula: r'$$x = \frac{-b \pm \sqrt{-\Delta} i}{2a}$$',
+          stepNumber: 8,
+          title: '解出 x',
+          explanation: '方程在实数范围内无解，但有虚数解。',
+          formula:
+              '\$\$x_1 = ${-halfCoeff} + ${imagPart}i, \\quad x_2 = ${-halfCoeff} - ${imagPart}i\$\$',
         ),
       );
 
       return CalculationResult(
         steps: steps,
         finalAnswer:
-            '\$\$x_1 = ${realPart.toStringAsFixed(4)} + $imagPartExpr, \\quad x_2 = ${realPart.toStringAsFixed(4)} - $imagPartExpr\$\$',
+            '\$\$x_1 = ${-halfCoeff} + ${imagPart}i, \\quad x_2 = ${-halfCoeff} - ${imagPart}i\$\$',
       );
     }
   }
@@ -1520,6 +1556,169 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     final denominator = BigInt.from(10).pow(fractionalPart.length);
 
     return Rational(numerator, denominator);
+  }
+
+  /// 检查数值是否可以表示为符号平方根形式
+  String? _getSymbolicSquareRoot(double value) {
+    if (value <= 0) return null;
+
+    // 对于完全平方数，直接返回整数平方根
+    final sqrtValue = sqrt(value);
+    final intSqrt = sqrtValue.toInt();
+    if ((sqrtValue - intSqrt).abs() < 1e-10) {
+      return intSqrt.toString();
+    }
+
+    // 检查是否可以表示为 k√m 的形式，其中 m 不是完全平方数
+    // 遍历可能的 k 值，从大到小
+    for (int k = sqrt(value).toInt(); k >= 2; k--) {
+      final kSquared = k * k;
+      if (kSquared > value) continue;
+
+      final remaining = value / kSquared;
+      final remainingSqrt = sqrt(remaining);
+      final intRemainingSqrt = remainingSqrt.toInt();
+
+      // 检查剩余部分是否为完全平方数
+      if ((remainingSqrt - intRemainingSqrt).abs() < 1e-10) {
+        // 找到匹配：value = k² * m，其中 m 是完全平方数
+        if (intRemainingSqrt == 1) {
+          return k.toString(); // k√1 = k
+        } else {
+          return '$k\\sqrt{$intRemainingSqrt}';
+        }
+      }
+    }
+
+    // 特殊情况：检查是否为简单的分数形式，如 48 = 16*3 = 4²*3
+    // 对于 value = 48, k = 4, remaining = 48/16 = 3, sqrt(3) ≈ 1.732, intRemainingSqrt = 1
+    // 但 1.732 != 1, 所以上面的循环不会匹配
+    // 我们需要检查 remaining 是否是整数且不是完全平方数
+    final intValue = value.toInt();
+    if (value == intValue.toDouble()) {
+      // 尝试找到最大的完全平方因子
+      int maxK = 1;
+      for (int k = 2; k * k <= intValue; k++) {
+        if (intValue % (k * k) == 0) {
+          maxK = k;
+        }
+      }
+
+      if (maxK > 1) {
+        final remaining = intValue ~/ (maxK * maxK);
+        if (remaining > 1) {
+          return '$maxK\\sqrt{$remaining}';
+        }
+      }
+    }
+
+    return null; // 无法用简单符号形式表示
+  }
+
+  /// 计算符号形式的二次方程根
+  ({String formula, String finalAnswer}) _calculateSymbolicRoots(
+    double a,
+    double b,
+    double discriminant,
+    String? symbolicSqrt,
+  ) {
+    final halfCoeff = b / (2 * a);
+    final denominator = 2 * a;
+
+    String formula;
+    String finalAnswer;
+
+    if (symbolicSqrt != null) {
+      // 使用符号形式
+      final sqrtExpr = symbolicSqrt;
+
+      // 计算根：(-b ± sqrt(discriminant)) / (2a)
+      final root1Expr = _formatSymbolicRoot(-b, sqrtExpr, denominator, true);
+      final root2Expr = _formatSymbolicRoot(-b, sqrtExpr, denominator, false);
+
+      formula = '\$\$x_1 = $root1Expr, \\quad x_2 = $root2Expr\$\$';
+      finalAnswer = '\$\$x_1 = $root1Expr, \\quad x_2 = $root2Expr\$\$';
+    } else {
+      // 回退到数值计算
+      final sqrtValue = sqrt(discriminant);
+      final x1 = -halfCoeff + sqrtValue;
+      final x2 = -halfCoeff - sqrtValue;
+
+      formula =
+          '\$\$x_1 = ${-halfCoeff} + $sqrtValue = $x1, \\quad x_2 = ${-halfCoeff} - $sqrtValue = $x2\$\$';
+      finalAnswer = '\$\$x_1 = $x1, \\quad x_2 = $x2\$\$';
+    }
+
+    return (formula: formula, finalAnswer: finalAnswer);
+  }
+
+  /// 格式化符号形式的根
+  String _formatSymbolicRoot(
+    double b,
+    String sqrtExpr,
+    double denominator,
+    bool isPlus,
+  ) {
+    final sign = isPlus ? '+' : '-';
+
+    // 处理分母
+    final denomStr = denominator == 2 ? '2' : denominator.toString();
+
+    if (b == 0) {
+      // 简化为 ±sqrt(discriminant)/denominator
+      if (denominator == 2) {
+        return isPlus ? '\\frac{$sqrtExpr}{2}' : '-\\frac{$sqrtExpr}{2}';
+      } else {
+        return isPlus
+            ? '\\frac{$sqrtExpr}{$denomStr}'
+            : '-\\frac{$sqrtExpr}{$denomStr}';
+      }
+    } else {
+      // 完整的表达式：(-b ± sqrt(discriminant))/denominator
+      final bInt = b.toInt();
+
+      // 检查是否可以简化
+      if (bInt % denominator.toInt() == 0) {
+        final simplifiedB = bInt ~/ denominator.toInt();
+
+        if (simplifiedB == 0) {
+          return isPlus ? sqrtExpr : '-$sqrtExpr';
+        } else if (simplifiedB == 1) {
+          return isPlus
+              ? '1 $sign $sqrtExpr'
+              : '1 $sign $sqrtExpr'.replaceAll('+', '-').replaceAll('--', '+');
+        } else if (simplifiedB == -1) {
+          return isPlus
+              ? '-1 $sign $sqrtExpr'
+              : '-1 $sign $sqrtExpr'.replaceAll('+', '-').replaceAll('--', '+');
+        } else if (simplifiedB > 0) {
+          return isPlus
+              ? '$simplifiedB $sign $sqrtExpr'
+              : '$simplifiedB $sign $sqrtExpr'
+                    .replaceAll('+', '-')
+                    .replaceAll('--', '+');
+        } else {
+          final absB = (-simplifiedB).toString();
+          return isPlus
+              ? '-$absB $sign $sqrtExpr'
+              : '-$absB $sign $sqrtExpr'
+                    .replaceAll('+', '-')
+                    .replaceAll('--', '+');
+        }
+      } else {
+        // 无法简化，使用分数形式
+        final bStr = b > 0 ? '$bInt' : '($bInt)';
+        final numerator = b > 0
+            ? '-$bStr $sign $sqrtExpr'
+            : '($bInt) $sign $sqrtExpr';
+
+        if (denominator == 2) {
+          return '\\frac{$numerator}{2}';
+        } else {
+          return '\\frac{$numerator}{$denomStr}';
+        }
+      }
+    }
   }
 
   /// 测试方法：验证修复效果
