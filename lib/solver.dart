@@ -250,7 +250,7 @@ class SolverService {
         stepNumber: 3,
         title: '方程变形',
         explanation: a == 1 ? '方程已经是标准形式。' : '将方程两边同时除以 $a。',
-        formula: '\$\$${currentEquation}\$\$',
+        formula: '\$\$$currentEquation\$\$',
       ),
     );
 
@@ -270,19 +270,19 @@ class SolverService {
     final halfCoeff = b / (2 * a);
     final completeSquareTerm = halfCoeff * halfCoeff;
     final completeStr = completeSquareTerm >= 0
-        ? '+${completeSquareTerm}'
+        ? '+$completeSquareTerm'
         : completeSquareTerm.toString();
 
-    final xTerm = halfCoeff >= 0 ? "+${halfCoeff}" : halfCoeff.toString();
-    final rightSide = "${-constantTerm} ${completeStr}";
+    final xTerm = halfCoeff >= 0 ? "+$halfCoeff" : halfCoeff.toString();
+    final rightSide = "${-constantTerm} $completeStr";
 
     steps.add(
       CalculationStep(
         stepNumber: 5,
         title: '配方',
         explanation:
-            '在方程两边同时加上 \$(\\frac{b}{2a})^2 = ${completeSquareTerm}\$ 以配成完全平方。',
-        formula: '\$\$(x ${xTerm})^2 = $rightSide\$\$',
+            '在方程两边同时加上 \$(\\frac{b}{2a})^2 = $completeSquareTerm\$ 以配成完全平方。',
+        formula: '\$\$(x $xTerm)^2 = $rightSide\$\$',
       ),
     );
 
@@ -290,7 +290,7 @@ class SolverService {
     final rightSideValue = -constantTerm + completeSquareTerm;
     final rightSideStrValue = rightSideValue >= 0
         ? rightSideValue.toString()
-        : '(${rightSideValue})';
+        : '($rightSideValue)';
 
     steps.add(
       CalculationStep(
@@ -298,7 +298,7 @@ class SolverService {
         title: '化简',
         explanation: '合并右边的常数项。',
         formula:
-            '\$\$(x ${halfCoeff >= 0 ? "+" : ""}${halfCoeff})^2 = $rightSideStrValue\$\$',
+            '\$\$(x ${halfCoeff >= 0 ? "+" : ""}$halfCoeff)^2 = $rightSideStrValue\$\$',
       ),
     );
 
@@ -314,7 +314,7 @@ class SolverService {
         title: '开方',
         explanation: '对方程两边同时开平方。',
         formula:
-            '\$\$x ${halfCoeff >= 0 ? "+" : ""}${halfCoeff} = \\pm $sqrtStr\$\$',
+            '\$\$x ${halfCoeff >= 0 ? "+" : ""}$halfCoeff = \\pm $sqrtStr\$\$',
       ),
     );
 
@@ -890,42 +890,6 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     return [a, b, c];
   }
 
-  ({String formula, String solution})? _tryFactorization(int a, int b, int c) {
-    if (a == 0) return null;
-    int ac = a * c;
-    int absAc = ac.abs();
-
-    // Try all divisors of abs(ac) and consider both positive and negative factors
-    for (int d = 1; d <= sqrt(absAc).toInt(); d++) {
-      if (absAc % d == 0) {
-        int d1 = d;
-        int d2 = absAc ~/ d;
-
-        // Try all sign combinations for the factors
-        // We need m * n = ac and m + n = b
-        List<int> signCombinations = [1, -1];
-
-        for (int sign1 in signCombinations) {
-          for (int sign2 in signCombinations) {
-            int m = sign1 * d1;
-            int n = sign2 * d2;
-            if (m + n == b && m * n == ac) {
-              return formatFactor(m, n, a);
-            }
-
-            // Also try the swapped version
-            m = sign1 * d2;
-            n = sign2 * d1;
-            if (m + n == b && m * n == ac) {
-              return formatFactor(m, n, a);
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }
-
   bool check(int m, int n, int b) => m + n == b;
 
   ({String formula, String solution}) formatFactor(int m, int n, int a) {
@@ -1367,48 +1331,5 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
   String _formatRational(Rational r) {
     if (r.denominator == BigInt.one) return r.numerator.toString();
     return '\\frac{${r.numerator}}{${r.denominator}}';
-  }
-
-  /// 测试方法：验证修复效果
-  void testParenthesesFix() {
-    print('=== 测试括号修复效果 ===');
-
-    // 测试案例1: 已经标准化的方程
-    final test1 = 'x^2+4x-8=0';
-    print('测试输入: $test1');
-    final result1 = solve(test1);
-    print('整理方程步骤:');
-    result1.steps.forEach((step) {
-      if (step.title == '整理方程') {
-        print('  公式: ${step.formula}');
-      }
-    });
-    print('预期: x^2+4x-8=0 (无括号)');
-    print('');
-
-    // 测试案例2: 需要展开的方程
-    final test2 = '(x+2)^2=x^2+4x+4';
-    print('测试输入: $test2');
-    final result2 = solve(test2);
-    print('整理方程步骤:');
-    result2.steps.forEach((step) {
-      if (step.title == '整理方程') {
-        print('  公式: ${step.formula}');
-      }
-    });
-    print('预期: 展开后无不必要的括号');
-    print('');
-
-    // 测试案例3: 因式分解
-    final test3 = '(x+1)(x-1)=x^2-1';
-    print('测试输入: $test3');
-    final result3 = solve(test3);
-    print('整理方程步骤:');
-    result3.steps.forEach((step) {
-      if (step.title == '整理方程') {
-        print('  公式: ${step.formula}');
-      }
-    });
-    print('预期: 展开后无不必要的括号');
   }
 }
