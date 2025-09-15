@@ -629,7 +629,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
         final expanded =
             '${newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
-        result = result.replaceFirst(powerMatch.group(0)!, '($expanded)');
+        result = result.replaceFirst(powerMatch.group(0)!, expanded);
         iterationCount++;
         continue;
       }
@@ -700,7 +700,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
                 : newA == -1
                 ? '-'
                 : newA}x^2${newB >= 0 ? '+' : ''}${newB}x${newC >= 0 ? '+' : ''}$newC';
-        result = result.replaceFirst(termFactorMatch.group(0)!, '($expanded)');
+        result = result.replaceFirst(termFactorMatch.group(0)!, expanded);
         iterationCount++;
         continue;
       }
@@ -712,6 +712,9 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     if (iterationCount >= maxIterations) {
       throw Exception('表达式展开过于复杂，请简化输入。');
     }
+
+    // 清理展开后的表达式格式
+    result = _cleanExpandedExpression(result);
 
     // 检查是否为方程（包含等号），如果是的话，将右边的常数项移到左边
     if (result.contains('=')) {
@@ -1177,13 +1180,35 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
     final parts = result.split('=');
     if (parts.length == 2) {
+      // Check if the equation is already in standard polynomial form
+      // If it doesn't contain parentheses and looks like a standard polynomial,
+      // return it as-is to avoid unnecessary parsing
+      final leftSide = parts[0];
+      final rightSide = parts[1];
+
+      // If left side is a standard polynomial (no parentheses, only x^2, x, and constants)
+      // and right side is 0, return the original
+      if (_isStandardPolynomial(leftSide) &&
+          (rightSide == '0' || rightSide.isEmpty)) {
+        result = '$leftSide=0';
+        return '\$\$$result\$\$';
+      }
+
       try {
         final leftParser = Parser(parts[0]);
         final leftExpr = leftParser.parse();
         final rightParser = Parser(parts[1]);
         final rightExpr = rightParser.parse();
-        result =
-            '${leftExpr.toString().replaceAll('*', '\\cdot')}=${rightExpr.toString().replaceAll('*', '\\cdot')}';
+
+        // Get the string representation and clean it up
+        String leftStr = leftExpr.toString().replaceAll('*', '\\cdot');
+        String rightStr = rightExpr.toString().replaceAll('*', '\\cdot');
+
+        // Clean up unnecessary parentheses
+        leftStr = _cleanParentheses(leftStr);
+        rightStr = _cleanParentheses(rightStr);
+
+        result = '$leftStr=$rightStr';
       } catch (e) {
         // Fallback to original if parsing fails
         result = result.replaceAll('sqrt(', '\\sqrt{');
@@ -1193,7 +1218,12 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
       try {
         final parser = Parser(result.split('=')[0]);
         final expr = parser.parse();
-        result = '${expr.toString().replaceAll('*', '\\cdot')}=0';
+
+        // Get the string representation and clean it up
+        String exprStr = expr.toString().replaceAll('*', '\\cdot');
+        exprStr = _cleanParentheses(exprStr);
+
+        result = '$exprStr=0';
       } catch (e) {
         // Fallback
         result = result.replaceAll('sqrt(', '\\sqrt{');
@@ -1202,6 +1232,101 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     }
 
     return '\$\$$result\$\$';
+  }
+
+  /// 检查字符串是否为标准多项式形式（不含括号，只有x^2、x和常数项）
+  bool _isStandardPolynomial(String expr) {
+    // Remove spaces
+    final cleanExpr = expr.replaceAll(' ', '');
+
+    // If it contains parentheses, it's not standard
+    if (cleanExpr.contains('(') || cleanExpr.contains(')')) {
+      return false;
+    }
+
+    // Check if it matches the pattern of a standard polynomial
+    // Should only contain: digits, x, ^, +, -, and spaces (already removed)
+    final validChars = RegExp(r'^[0-9x\^\+\-\.]*$');
+    if (!validChars.hasMatch(cleanExpr)) {
+      return false;
+    }
+
+    // Should not have complex expressions like x*x or 2x*3
+    if (cleanExpr.contains('*') || cleanExpr.contains('/')) {
+      return false;
+    }
+
+    // Should have proper x^2 format (not xx or x2)
+    if (cleanExpr.contains('x^2') ||
+        cleanExpr.contains('x^3') ||
+        cleanExpr.contains('x^4')) {
+      // This is likely a polynomial
+      return true;
+    }
+
+    // Check for simple terms like x, 2x, x+1, etc.
+    final termPattern = RegExp(
+      r'^[+-]?(?:\d*\.?\d*)?x?(?:\^\d+)?(?:[+-][+-]?(?:\d*\.?\d*)?x?(?:\^\d+)?)*$',
+    );
+    return termPattern.hasMatch(cleanExpr);
+  }
+
+  /// 清理不必要的括号
+  String _cleanParentheses(String expr) {
+    // 移除最外层的括号，如果它们不影响运算顺序
+    if (expr.startsWith('(') && expr.endsWith(')')) {
+      String inner = expr.substring(1, expr.length - 1);
+
+      // 检查移除括号是否会改变含义
+      // 简单检查：如果内部没有运算符，或者只有加减号，可以移除
+      if (!inner.contains('+') &&
+          !inner.contains('-') &&
+          !inner.contains('*') &&
+          !inner.contains('/')) {
+        return inner;
+      }
+
+      // 如果内部表达式是简单的，可以移除括号
+      // 例如：(x+1) 可以变成 x+1, 但 (x+1)*(x-1) 不能移除
+      final operators = RegExp(r'[+\-*/]');
+      final matches = operators.allMatches(inner).toList();
+
+      // 如果只有一个运算符且是加减号，可以移除
+      if (matches.length == 1 && (inner.contains('+') || inner.contains('-'))) {
+        return inner;
+      }
+    }
+
+    return expr;
+  }
+
+  /// 清理展开后的表达式格式
+  String _cleanExpandedExpression(String expr) {
+    String result = expr;
+
+    // 移除不必要的.0后缀
+    result = result.replaceAll('.0', '');
+
+    // 移除+0和-0
+    result = result.replaceAll('+0', '');
+    result = result.replaceAll('-0', '');
+
+    // 简化系数为1的情况
+    result = result.replaceAll('1x^2', 'x^2');
+    result = result.replaceAll('1x', 'x');
+
+    // 移除开头的+号
+    if (result.startsWith('+')) {
+      result = result.substring(1);
+    }
+
+    // 处理连续的运算符
+    result = result.replaceAll('++', '+');
+    result = result.replaceAll('+-', '-');
+    result = result.replaceAll('-+', '-');
+    result = result.replaceAll('--', '+');
+
+    return result;
   }
 
   /// 解析多项式，保持符号形式
@@ -1395,5 +1520,48 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     final denominator = BigInt.from(10).pow(fractionalPart.length);
 
     return Rational(numerator, denominator);
+  }
+
+  /// 测试方法：验证修复效果
+  void testParenthesesFix() {
+    print('=== 测试括号修复效果 ===');
+
+    // 测试案例1: 已经标准化的方程
+    final test1 = 'x^2+4x-8=0';
+    print('测试输入: $test1');
+    final result1 = solve(test1);
+    print('整理方程步骤:');
+    result1.steps.forEach((step) {
+      if (step.title == '整理方程') {
+        print('  公式: ${step.formula}');
+      }
+    });
+    print('预期: x^2+4x-8=0 (无括号)');
+    print('');
+
+    // 测试案例2: 需要展开的方程
+    final test2 = '(x+2)^2=x^2+4x+4';
+    print('测试输入: $test2');
+    final result2 = solve(test2);
+    print('整理方程步骤:');
+    result2.steps.forEach((step) {
+      if (step.title == '整理方程') {
+        print('  公式: ${step.formula}');
+      }
+    });
+    print('预期: 展开后无不必要的括号');
+    print('');
+
+    // 测试案例3: 因式分解
+    final test3 = '(x+1)(x-1)=x^2-1';
+    print('测试输入: $test3');
+    final result3 = solve(test3);
+    print('整理方程步骤:');
+    result3.steps.forEach((step) {
+      if (step.title == '整理方程') {
+        print('  公式: ${step.formula}');
+      }
+    });
+    print('预期: 展开后无不必要的括号');
   }
 }
