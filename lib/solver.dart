@@ -401,25 +401,6 @@ class SolverService {
     final eqParts = input.split('=');
     if (eqParts.length != 2) throw Exception("方程格式错误，应包含一个 '='。");
 
-    // Keep original equation for display
-    final originalEquation = _formatOriginalEquation(input);
-
-    // Parse coefficients symbolically (kept for potential future use)
-    // final leftCoeffsSymbolic = _parsePolynomialSymbolic(eqParts[0]);
-    // final rightCoeffsSymbolic = _parsePolynomialSymbolic(eqParts[1]);
-    // final aSymbolic = _subtractCoefficients(
-    //   leftCoeffsSymbolic[2] ?? '0',
-    //   rightCoeffsSymbolic[2] ?? '0',
-    // );
-    // final bSymbolic = _subtractCoefficients(
-    //   leftCoeffsSymbolic[1] ?? '0',
-    //   rightCoeffsSymbolic[1] ?? '0',
-    // );
-    // final cSymbolic = _subtractCoefficients(
-    //   leftCoeffsSymbolic[0] ?? '0',
-    //   rightCoeffsSymbolic[0] ?? '0',
-    // );
-
     // Also get numeric values for calculations
     final leftCoeffs = _parsePolynomial(eqParts[0], variable);
     final rightCoeffs = _parsePolynomial(eqParts[1], variable);
@@ -431,12 +412,15 @@ class SolverService {
       return _solveLinearEquation('${b}x+$c=0');
     }
 
+    // Create expanded equation display
+    final expandedEquation = _formatExpandedEquation(input);
+
     steps.add(
       CalculationStep(
         stepNumber: 1,
         title: '整理方程',
         explanation: r'将方程整理成标准形式 $ax^2+bx+c=0$。',
-        formula: originalEquation,
+        formula: expandedEquation,
       ),
     );
 
@@ -1406,136 +1390,59 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
   int gcd(int a, int b) => b == 0 ? a : gcd(b, a % b);
 
-  /// 格式化原始方程，保持符号形式
-  String _formatOriginalEquation(String input) {
-    // Parse the equation and convert to LaTeX
+  /// 格式化展开后的方程
+  String _formatExpandedEquation(String input) {
+    // The input is already expanded, so we just need to format it for LaTeX display
     String result = input.replaceAll(' ', '');
 
-    // 确保方程格式正确
+    // Ensure equation format is correct
     if (!result.contains('=')) {
       result = '$result=0';
     }
 
     final parts = result.split('=');
     if (parts.length == 2) {
-      // Check if the equation is already in standard polynomial form
-      // If it doesn't contain parentheses and looks like a standard polynomial,
-      // return it as-is to avoid unnecessary parsing
-      final leftSide = parts[0];
-      final rightSide = parts[1];
+      // Clean up the expanded expression directly without re-parsing
+      // to avoid adding unnecessary parentheses
+      String leftStr = _cleanExpandedExpressionForDisplay(parts[0]);
+      String rightStr = _cleanExpandedExpressionForDisplay(parts[1]);
 
-      // If left side is a standard polynomial (no parentheses, only x^2, x, and constants)
-      // and right side is 0, return the original
-      if (_isStandardPolynomial(leftSide) &&
-          (rightSide == '0' || rightSide.isEmpty)) {
-        result = '$leftSide=0';
-        return '\$\$$result\$\$';
-      }
-
-      try {
-        final leftParser = Parser(parts[0]);
-        final leftExpr = leftParser.parse();
-        final rightParser = Parser(parts[1]);
-        final rightExpr = rightParser.parse();
-
-        // Get the string representation and clean it up
-        String leftStr = leftExpr.toString().replaceAll('*', '\\cdot');
-        String rightStr = rightExpr.toString().replaceAll('*', '\\cdot');
-
-        // Clean up unnecessary parentheses
-        leftStr = _cleanParentheses(leftStr);
-        rightStr = _cleanParentheses(rightStr);
-
-        result = '$leftStr=$rightStr';
-      } catch (e) {
-        // Fallback to original if parsing fails
-        result = result.replaceAll('sqrt(', '\\sqrt{');
-        result = result.replaceAll(')', '}');
-      }
-    } else {
-      try {
-        final parser = Parser(result.split('=')[0]);
-        final expr = parser.parse();
-
-        // Get the string representation and clean it up
-        String exprStr = expr.toString().replaceAll('*', '\\cdot');
-        exprStr = _cleanParentheses(exprStr);
-
-        result = '$exprStr=0';
-      } catch (e) {
-        // Fallback
-        result = result.replaceAll('sqrt(', '\\sqrt{');
-        result = result.replaceAll(')', '}');
-      }
+      result = '$leftStr=$rightStr';
     }
 
     return '\$\$$result\$\$';
   }
 
-  /// 检查字符串是否为标准多项式形式（不含括号，只有x^2、x和常数项）
-  bool _isStandardPolynomial(String expr) {
-    // Remove spaces
-    final cleanExpr = expr.replaceAll(' ', '');
+  /// 清理展开后的表达式用于显示，去除不必要的括号
+  String _cleanExpandedExpressionForDisplay(String expr) {
+    String result = expr;
 
-    // If it contains parentheses, it's not standard
-    if (cleanExpr.contains('(') || cleanExpr.contains(')')) {
-      return false;
-    }
-
-    // Check if it matches the pattern of a standard polynomial
-    // Should only contain: digits, x, ^, +, -, and spaces (already removed)
-    final validChars = RegExp(r'^[0-9x\^\+\-\.]*$');
-    if (!validChars.hasMatch(cleanExpr)) {
-      return false;
-    }
-
-    // Should not have complex expressions like x*x or 2x*3
-    if (cleanExpr.contains('*') || cleanExpr.contains('/')) {
-      return false;
-    }
-
-    // Should have proper x^2 format (not xx or x2)
-    if (cleanExpr.contains('x^2') ||
-        cleanExpr.contains('x^3') ||
-        cleanExpr.contains('x^4')) {
-      // This is likely a polynomial
-      return true;
-    }
-
-    // Check for simple terms like x, 2x, x+1, etc.
-    final termPattern = RegExp(
-      r'^[+-]?(?:\d*\.?\d*)?x?(?:\^\d+)?(?:[+-][+-]?(?:\d*\.?\d*)?x?(?:\^\d+)?)*$',
-    );
-    return termPattern.hasMatch(cleanExpr);
-  }
-
-  /// 清理不必要的括号
-  String _cleanParentheses(String expr) {
-    // 移除最外层的括号，如果它们不影响运算顺序
-    if (expr.startsWith('(') && expr.endsWith(')')) {
-      String inner = expr.substring(1, expr.length - 1);
-
-      // 检查移除括号是否会改变含义
-      // 简单检查：如果内部没有运算符，或者只有加减号，可以移除
-      if (!inner.contains('+') &&
-          !inner.contains('-') &&
-          !inner.contains('*') &&
-          !inner.contains('/')) {
-        return inner;
-      }
-
-      // 如果内部表达式是简单的，可以移除括号
-      // 例如：(x+1) 可以变成 x+1, 但 (x+1)*(x-1) 不能移除
-      final operators = RegExp(r'[+\-*/]');
-      final matches = operators.allMatches(inner).toList();
-
-      // 如果只有一个运算符且是加减号，可以移除
-      if (matches.length == 1 && (inner.contains('+') || inner.contains('-'))) {
-        return inner;
+    // 移除最外层的括号，如果它们包围整个表达式
+    if (result.startsWith('(') && result.endsWith(')')) {
+      String inner = result.substring(1, result.length - 1);
+      // 检查内部是否包含运算符，如果不包含或只包含加减号，可以移除括号
+      if (!inner.contains('*') && !inner.contains('/')) {
+        // 对于加减号，检查是否只有一个运算符
+        final plusMinusCount =
+            '+'.allMatches(inner).length + '-'.allMatches(inner).length;
+        if (plusMinusCount <= 1) {
+          result = inner;
+        }
       }
     }
 
-    return expr;
+    // 移除内部不必要的括号
+    result = result.replaceAll('(+', '(');
+    result = result.replaceAll('(-', '(');
+
+    // 格式化乘法符号
+    result = result.replaceAll('*', '\\cdot');
+
+    // 处理根号
+    result = result.replaceAll('sqrt(', '\\sqrt{');
+    result = result.replaceAll(')', '}');
+
+    return result;
   }
 
   /// 清理展开后的表达式格式
