@@ -23,6 +23,77 @@ class SolverService {
       processedInput = _expandExpressions(processedInput);
     }
 
+    // 0. 检查是否是 a(expr)^2 = b 的形式
+    final squareEqMatch = RegExp(
+      r'^(\d*\.?\d*)\(([^)]+)\)\^2\s*=\s*(.+)$',
+    ).firstMatch(cleanInput);
+    if (squareEqMatch != null) {
+      final coeffStr = squareEqMatch.group(1)!;
+      final exprStr = squareEqMatch.group(2)!;
+      final rightStr = squareEqMatch.group(3)!;
+
+      // 解析系数
+      double coeff = coeffStr.isEmpty ? 1.0 : double.parse(coeffStr);
+
+      // 解析右边
+      double right = double.parse(rightStr);
+
+      // 解析 expr 为 x ± h
+      final exprMatch = RegExp(r'x\s*([+-]\s*\d*\.?\d*)?').firstMatch(exprStr);
+      if (exprMatch != null) {
+        final hStr = exprMatch.group(1) ?? '';
+        double constant = hStr.isEmpty
+            ? 0.0
+            : double.parse(hStr.replaceAll(' ', ''));
+        double h = -constant; // For (x - h)^2, h is the center
+
+        // 使用有理数计算
+        final coeffRat = _rationalFromDouble(coeff);
+        final rightRat = _rationalFromDouble(right);
+        final hRat = _rationalFromDouble(h);
+        final innerRat = rightRat / coeffRat;
+        final sqrtInnerRat = sqrtRational(innerRat);
+        if (sqrtInnerRat != null) {
+          final x1Rat = hRat + sqrtInnerRat;
+          final x2Rat = hRat - sqrtInnerRat;
+          final x1Str = _formatRational(x1Rat);
+          final x2Str = _formatRational(x2Rat);
+
+          return CalculationResult(
+            steps: [
+              CalculationStep(
+                stepNumber: 1,
+                title: '整理方程',
+                explanation: '这是一个平方形式的方程。',
+                formula: '\$\$$cleanInput\$\$',
+              ),
+              CalculationStep(
+                stepNumber: 2,
+                title: '移项',
+                explanation: '将常数项移到等式右边。',
+                formula:
+                    '\$\$($exprStr)^2 = \\frac{${rightRat.numerator}}{${rightRat.denominator}} \\div \\frac{${coeffRat.numerator}}{${coeffRat.denominator}}\$\$',
+              ),
+              CalculationStep(
+                stepNumber: 3,
+                title: '开方',
+                explanation: '对方程两边同时开平方。',
+                formula:
+                    '\$\$x ${h >= 0 ? '+' : ''}$h = \\pm \\sqrt{\\frac{${innerRat.numerator}}{${innerRat.denominator}}}\$\$',
+              ),
+              CalculationStep(
+                stepNumber: 4,
+                title: '解出 x',
+                explanation: '分别取正负号，解出 x 的值。',
+                formula: '\$\$x_1 = $x1Str, \\quad x_2 = $x2Str\$\$',
+              ),
+            ],
+            finalAnswer: '\$\$x_1 = $x1Str, \\quad x_2 = $x2Str\$\$',
+          );
+        }
+      }
+    }
+
     // 1. 检查是否为二元一次方程组 (格式: ...;...)
     if (processedInput.contains(';') &&
         processedInput.contains('x') &&
