@@ -24,37 +24,43 @@ class SolverService {
     return formatted;
   }
 
-  /// 获取整数的所有因数（包括正负）
-  List<int> _getAllDivisors(int n) {
-    List<int> divisors = [];
-    int absN = n.abs();
-    for (int i = 1; i <= absN; i++) {
-      if (absN % i == 0) {
-        divisors.add(i);
-        if (i != absN) divisors.add(-i);
-      }
-    }
-    return divisors;
-  }
-
   /// 尝试对二次方程进行因式分解
   String? _tryFactorQuadratic(double a, double b, double c) {
     if (a != a.round() || b != b.round() || c != c.round()) return null;
     int aa = a.round(), bb = b.round(), cc = c.round();
     if (aa == 0) return null; // 不是二次方程
-    var divisorsA = _getAllDivisors(aa);
-    var divisorsC = _getAllDivisors(cc);
-    for (int p in divisorsA) {
-      int r = aa ~/ p;
-      for (int q in divisorsC) {
-        int s = cc ~/ q;
-        if (p * s + q * r == bb) {
-          String factor1 = _formatFactorTerm(p, q);
-          String factor2 = _formatFactorTerm(r, s);
-          return '($factor1)($factor2)';
+
+    // 简单情况：如果 a=1，尝试简单的因式分解
+    if (aa == 1) {
+      // 寻找两个因式 (x + m)(x + n) = x^2 + (m+n)x + mn
+      // 需要满足 m+n = -b, mn = c
+      for (int m = -100; m <= 100; m++) {
+        for (int n = -100; n <= 100; n++) {
+          if (m + n == -bb && m * n == cc) {
+            String factor1 = _formatFactorTerm(1, -m);
+            String factor2 = _formatFactorTerm(1, -n);
+            return '($factor1)($factor2)';
+          }
         }
       }
     }
+
+    // 简单情况：如果 a=-1，尝试简单的因式分解
+    if (aa == -1) {
+      // 寻找两个因式 -(x + m)(x + n) = -x^2 - (m+n)x - mn
+      // 需要满足 m+n = b, mn = -c
+      for (int m = -100; m <= 100; m++) {
+        for (int n = -100; n <= 100; n++) {
+          if (m + n == bb && m * n == -cc) {
+            String factor1 = _formatFactorTerm(1, m);
+            String factor2 = _formatFactorTerm(1, n);
+            return '-($factor1)($factor2)';
+          }
+        }
+      }
+    }
+
+    // 对于更复杂的情况，暂时不进行因式分解
     return null;
   }
 
@@ -407,13 +413,9 @@ class SolverService {
           formula: '\$\$$factored = 0\$\$',
         ),
       );
-      final discriminant = b * b - 4 * a * c;
-      final roots = _calculateSymbolicRoots(
-        a,
-        b,
-        discriminant,
-        _getSymbolicSquareRoot(discriminant),
-      );
+
+      // Parse the factored form to find the roots
+      final roots = _calculateRootsFromFactoredForm(factored);
       steps.add(
         CalculationStep(
           stepNumber: 4,
@@ -1732,6 +1734,94 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     return '\\frac{${r.numerator}}{${r.denominator}}';
   }
 
+  /// 从因式分解形式计算二次方程的根
+  ({String formula, String finalAnswer}) _calculateRootsFromFactoredForm(
+    String factored,
+  ) {
+    // 解析因式分解形式，如 "(2x + 4)(x - 3)" 或 "(x - 1)(x - 1)"
+    final factorMatch = RegExp(r'\(([^)]+)\)\(([^)]+)\)').firstMatch(factored);
+    if (factorMatch == null) {
+      return (formula: '\$\$无法解析因式形式\$\$', finalAnswer: '\$\$无法解析因式形式\$\$');
+    }
+
+    final factor1 = factorMatch.group(1)!;
+    final factor2 = factorMatch.group(2)!;
+
+    // 简化解析：直接从字符串中提取系数
+    double a1 = 1, b1 = 0;
+    double a2 = 1, b2 = 0;
+
+    // 解析第一个因式
+    final f1 = factor1.replaceAll(' ', '');
+    if (f1.contains('x')) {
+      final parts = f1.split('x');
+      if (parts[0].isEmpty || parts[0] == '+') {
+        a1 = 1;
+      } else if (parts[0] == '-') {
+        a1 = -1;
+      } else {
+        a1 = double.parse(parts[0]);
+      }
+
+      if (parts.length > 1 && parts[1].isNotEmpty) {
+        b1 = double.parse(parts[1]);
+      }
+    } else {
+      // 常数项
+      b1 = double.parse(f1);
+      a1 = 0;
+    }
+
+    // 解析第二个因式
+    final f2 = factor2.replaceAll(' ', '');
+    if (f2.contains('x')) {
+      final parts = f2.split('x');
+      if (parts[0].isEmpty || parts[0] == '+') {
+        a2 = 1;
+      } else if (parts[0] == '-') {
+        a2 = -1;
+      } else {
+        a2 = double.parse(parts[0]);
+      }
+
+      if (parts.length > 1 && parts[1].isNotEmpty) {
+        b2 = double.parse(parts[1]);
+      }
+    } else {
+      // 常数项
+      b2 = double.parse(f2);
+      a2 = 0;
+    }
+
+    // 计算根：x = -b/a 对于每个因式
+    String root1, root2;
+
+    if (a1 != 0) {
+      final root1Rat = _rationalFromDouble(-b1 / a1);
+      root1 = _formatRational(root1Rat);
+    } else {
+      root1 = 'undefined';
+    }
+
+    if (a2 != 0) {
+      final root2Rat = _rationalFromDouble(-b2 / a2);
+      root2 = _formatRational(root2Rat);
+    } else {
+      root2 = 'undefined';
+    }
+
+    // 检查是否为重根
+    final formula = root1 == root2
+        ? '\$\$x_1 = x_2 = $root1\$\$'
+        : '\$\$x_1 = $root1, \\quad x_2 = $root2\$\$';
+
+    final finalAnswer = root1 == root2
+        ? '\$\$x_1 = x_2 = $root1\$\$'
+        : '\$\$x_1 = $root1, \\quad x_2 = $root2\$\$';
+
+    return (formula: formula, finalAnswer: finalAnswer);
+  }
+
   /// 使用公式法求解一元二次方程
   CalculationResult _solveQuadraticByFormula(
     double a,
@@ -1747,7 +1837,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         title: '计算判别式',
         explanation: '判别式 Δ = b² - 4ac，用于判断方程根的情况。',
         formula:
-            '\$\$\\Delta = b^2 - 4ac = ${b}^2 - 4 \\cdot ${a} \\cdot ${c} = $discriminant\$\$',
+            '\$\$\\Delta = b^2 - 4ac = $b^2 - 4 \\cdot $a \\cdot $c = $discriminant\$\$',
       ),
     );
 
@@ -1759,28 +1849,57 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     String finalAnswer;
 
     if (discriminant > 0) {
-      // 两个实数根
+      // 两个实数根 - 使用有理数计算并化简
       final x1 = (-b + sqrtDiscriminant) / denominator;
       final x2 = (-b - sqrtDiscriminant) / denominator;
 
-      formula =
-          '\$\$x = \\frac{-b \\pm \\sqrt{\\Delta}}{2a} = \\frac{${-b} \\pm \\sqrt{$discriminant}}{${denominator}}\$\$';
-      finalAnswer = '\$\$x_1 = ${x1}, \\quad x_2 = ${x2}\$\$';
-    } else if (discriminant == 0) {
-      // 一个实数根（重根）
-      final x = -b / denominator;
+      // 尝试使用有理数精确计算
+      final aRat = _rationalFromDouble(a);
+      final bRat = _rationalFromDouble(b);
+      final cRat = _rationalFromDouble(c);
+      final discriminantRat =
+          bRat * bRat - Rational(BigInt.from(4)) * aRat * cRat;
+      final sqrtRat = sqrtRational(discriminantRat);
 
-      formula = '\$\$x = \\frac{-b}{2a} = \\frac{${-b}}{${denominator}}\$\$';
-      finalAnswer = '\$\$x = ${x}\$\$';
+      if (sqrtRat != null) {
+        // 使用精确有理数计算
+        final x1Rat = (-bRat + sqrtRat) / (Rational(BigInt.from(2)) * aRat);
+        final x2Rat = (-bRat - sqrtRat) / (Rational(BigInt.from(2)) * aRat);
+        final x1Str = _formatRational(x1Rat);
+        final x2Str = _formatRational(x2Rat);
+
+        formula =
+            '\$\$x = \\frac{-b \\pm \\sqrt{\\Delta}}{2a} = \\frac{${-b} \\pm \\sqrt{$discriminant}}{$denominator}\$\$';
+        finalAnswer = '\$\$x_1 = $x1Str, \\quad x_2 = $x2Str\$\$';
+      } else {
+        // 回退到数值计算
+        formula =
+            '\$\$x = \\frac{-b \\pm \\sqrt{\\Delta}}{2a} = \\frac{${-b} \\pm \\sqrt{$discriminant}}{$denominator}\$\$';
+        finalAnswer = '\$\$x_1 = $x1, \\quad x_2 = $x2\$\$';
+      }
+    } else if (discriminant == 0) {
+      // 尝试使用有理数计算
+      final aRat = _rationalFromDouble(a);
+      final bRat = _rationalFromDouble(b);
+      final xRat = -bRat / (Rational(BigInt.from(2)) * aRat);
+      final xStr = _formatRational(xRat);
+
+      formula = '\$\$x = \\frac{-b}{2a} = \\frac{${-b}}{$denominator}\$\$';
+      finalAnswer = '\$\$x = $xStr\$\$';
     } else {
       // 两个虚数根
-      final realPart = -b / denominator;
       final imagPart = sqrtDiscriminant / denominator.abs();
 
+      // 尝试使用有理数计算实部
+      final aRat = _rationalFromDouble(a);
+      final bRat = _rationalFromDouble(b);
+      final realPartRat = -bRat / (Rational(BigInt.from(2)) * aRat);
+      final realPartStr = _formatRational(realPartRat);
+
       formula =
-          '\$\$x = \\frac{-b \\pm \\sqrt{\\Delta}}{2a} = \\frac{${-b} \\pm \\sqrt{${discriminant}}}{${denominator}}\$\$';
+          '\$\$x = \\frac{-b \\pm \\sqrt{\\Delta}}{2a} = \\frac{${-b} \\pm \\sqrt{$discriminant}}{$denominator}\$\$';
       finalAnswer =
-          '\$\$x_1 = ${realPart} + ${imagPart}i, \\quad x_2 = ${realPart} - ${imagPart}i\$\$';
+          '\$\$x_1 = $realPartStr + ${imagPart}i, \\quad x_2 = $realPartStr - ${imagPart}i\$\$';
     }
 
     steps.add(
