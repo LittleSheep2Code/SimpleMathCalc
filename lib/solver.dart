@@ -455,16 +455,23 @@ class SolverService {
       );
       return CalculationResult(steps: steps, finalAnswer: roots.finalAnswer);
     } else {
-      // 检查系数是否都是整数
-      bool allIntegers = a == a.round() && b == b.round() && c == c.round();
+      // 检查配方出来的数字是否为整数
+      final aRat = _rationalFromDouble(a);
+      final bRat = _rationalFromDouble(b);
+      final cRat = _rationalFromDouble(c);
+      final two = Rational(BigInt.from(2));
+      final hRat = bRat / (two * aRat);
+      final kRat = hRat * hRat - cRat / aRat;
+      final completingSquareGivesIntegers =
+          hRat.denominator == BigInt.one && kRat.denominator == BigInt.one;
 
-      if (!allIntegers) {
+      if (!completingSquareGivesIntegers) {
         // 使用公式法
         steps.add(
           CalculationStep(
             stepNumber: 2,
             title: '选择解法',
-            explanation: '系数包含非整数，我们选择使用公式法。',
+            explanation: '配方出来的数字包含非整数，我们选择使用公式法。',
             formula: r'公式法：$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$',
           ),
         );
@@ -475,7 +482,7 @@ class SolverService {
           CalculationStep(
             stepNumber: 2,
             title: '选择解法',
-            explanation: '我们选择使用配方法。',
+            explanation: '配方出来的数字都是整数，我们选择使用配方法。',
             formula: r'配方法：$x^2 + \frac{b}{a}x + \frac{c}{a} = 0$',
           ),
         );
