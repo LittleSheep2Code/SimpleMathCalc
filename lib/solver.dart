@@ -91,7 +91,7 @@ class SolverService {
 
   /// 检测方程中的变量
   Set<String> _detectVariables(String input) {
-    final variablePattern = RegExp(r'\b([a-zA-Z])\b');
+    final variablePattern = RegExp(r'([a-zA-Z])');
     final matches = variablePattern.allMatches(input);
     return matches.map((match) => match.group(1)!).toSet();
   }
@@ -103,8 +103,8 @@ class SolverService {
 
     // 检测方程中的变量
     final variables = _detectVariables(cleanInput);
-    if (variables.isEmpty) {
-      // 如果没有变量，当作简单表达式处理
+    if (!cleanInput.contains('=') || variables.isEmpty) {
+      // 如果没有等号或没有变量，当作简单表达式处理
       try {
         return _solveSimpleExpression(input);
       } catch (e) {

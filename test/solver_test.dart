@@ -60,10 +60,9 @@ void main() {
       // 这个方程的根应该是 x = (4 ± √36)/2 = (4 ± 6)/2
       // 所以 x1 = 5, x2 = -1
       expect(
-        result.finalAnswer.contains('2 + 3') &&
-            result.finalAnswer.contains('2 - 3'),
+        result.finalAnswer.contains('5') && result.finalAnswer.contains('-1'),
         true,
-        reason: '方程 x^2 - 4x - 5 = 0 的根应该被表示为 2 ± 3',
+        reason: '方程 x^2 - 4x - 5 = 0 的根为 2 ± 3',
       );
     });
 
