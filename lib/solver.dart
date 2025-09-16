@@ -37,8 +37,8 @@ class SolverService {
       for (int m = -100; m <= 100; m++) {
         for (int n = -100; n <= 100; n++) {
           if (m + n == -bb && m * n == cc) {
-            String factor1 = _formatFactorTerm(1, -m);
-            String factor2 = _formatFactorTerm(1, -n);
+            String factor1 = _formatFactorTerm(1, -m, 'x');
+            String factor2 = _formatFactorTerm(1, -n, 'x');
             return '($factor1)($factor2)';
           }
         }
@@ -65,15 +65,15 @@ class SolverService {
   }
 
   /// 格式化因式中的项
-  String _formatFactorTerm(int coeff, int constTerm) {
+  String _formatFactorTerm(int coeff, int constTerm, [String variable = 'x']) {
     String result = '';
     if (coeff != 0) {
       if (coeff == 1)
-        result += 'x';
+        result += variable;
       else if (coeff == -1)
-        result += '-x';
+        result += '-$variable';
       else
-        result += '${coeff}x';
+        result += '${coeff}$variable';
     }
     if (constTerm != 0) {
       if (result.isNotEmpty) {
@@ -89,15 +89,36 @@ class SolverService {
     return result;
   }
 
+  /// 检测方程中的变量
+  Set<String> _detectVariables(String input) {
+    final variablePattern = RegExp(r'\b([a-zA-Z])\b');
+    final matches = variablePattern.allMatches(input);
+    return matches.map((match) => match.group(1)!).toSet();
+  }
+
   /// 主入口方法，识别并分发任务
   CalculationResult solve(String input) {
     // 预处理输入字符串
     final cleanInput = input.replaceAll(' ', '').toLowerCase();
 
-    // 对包含x的方程进行预处理，展开表达式
+    // 检测方程中的变量
+    final variables = _detectVariables(cleanInput);
+    if (variables.isEmpty) {
+      // 如果没有变量，当作简单表达式处理
+      try {
+        return _solveSimpleExpression(input);
+      } catch (e) {
+        throw Exception('无法识别的格式。请检查您的方程或表达式。');
+      }
+    }
+
+    // 获取主变量（第一个检测到的变量）
+    final mainVariable = variables.first;
+
+    // 对包含变量的方程进行预处理，展开表达式
     String processedInput = cleanInput;
-    if (processedInput.contains('x') && processedInput.contains('(')) {
-      processedInput = _expandExpressions(processedInput);
+    if (processedInput.contains(mainVariable) && processedInput.contains('(')) {
+      processedInput = _expandExpressions(processedInput, mainVariable);
     }
 
     // 0. 检查是否是 (expr)^n = constant 的形式（任意次幂）
@@ -113,13 +134,19 @@ class SolverService {
       final rightValue = double.tryParse(rightStr);
 
       if (rightValue != null) {
-        return _solveGeneralPowerEquation(exprStr, n, rightValue, cleanInput);
+        return _solveGeneralPowerEquation(
+          exprStr,
+          n,
+          rightValue,
+          cleanInput,
+          mainVariable,
+        );
       }
     }
 
     // 0.5. 检查是否是 a(expr)^2 = b 的形式（向后兼容）
     final squareEqMatch = RegExp(
-      r'^(\d*\.?\d*)\(([^)]+)\)\^2\s*=\s*(.+)$',
+      r'^(\d*\.?\d*)?\(([^)]+)\)\^2\s*=\s*(.+)$',
     ).firstMatch(cleanInput);
     if (squareEqMatch != null) {
       final coeffStr = squareEqMatch.group(1)!;
@@ -132,14 +159,16 @@ class SolverService {
       // 解析右边
       double right = double.parse(rightStr);
 
-      // 解析 expr 为 x ± h
-      final exprMatch = RegExp(r'x\s*([+-]\s*\d*\.?\d*)?').firstMatch(exprStr);
+      // 解析 expr 为 variable ± h
+      final exprMatch = RegExp(
+        r'$mainVariable\s*([+-]\s*\d*\.?\d*)?',
+      ).firstMatch(exprStr);
       if (exprMatch != null) {
         final hStr = exprMatch.group(1) ?? '';
         double constant = hStr.isEmpty
             ? 0.0
             : double.parse(hStr.replaceAll(' ', ''));
-        double h = -constant; // For (x - h)^2, h is the center
+        double h = -constant; // For (var - h)^2, h is the center
 
         // 使用有理数计算
         final coeffRat = _rationalFromDouble(coeff);
@@ -173,44 +202,49 @@ class SolverService {
                 title: '开方',
                 explanation: '对方程两边同时开平方。',
                 formula:
-                    '\$\$x ${h >= 0 ? '+' : ''}$h = \\pm \\sqrt{\\frac{${innerRat.numerator}}{${innerRat.denominator}}}\$\$',
+                    '\$\$${mainVariable} ${h >= 0 ? '+' : ''}$h = \\pm \\sqrt{\\frac{${innerRat.numerator}}{${innerRat.denominator}}}\$\$',
               ),
               CalculationStep(
                 stepNumber: 4,
-                title: '解出 x',
-                explanation: '分别取正负号，解出 x 的值。',
-                formula: '\$\$x_1 = $x1Str, \\quad x_2 = $x2Str\$\$',
+                title: '解出 ${mainVariable}',
+                explanation: '分别取正负号，解出 ${mainVariable} 的值。',
+                formula:
+                    '\$\$${mainVariable}_1 = $x1Str, \\quad ${mainVariable}_2 = $x2Str\$\$',
               ),
             ],
-            finalAnswer: '\$\$x_1 = $x1Str, \\quad x_2 = $x2Str\$\$',
+            finalAnswer:
+                '\$\$${mainVariable}_1 = $x1Str, \\quad ${mainVariable}_2 = $x2Str\$\$',
           );
         }
       }
     }
 
-    // 1. 检查是否为二元一次方程组 (格式: ...;...)
-    if (processedInput.contains(';') &&
-        processedInput.contains('x') &&
-        processedInput.contains('y')) {
-      return _solveSystemOfLinearEquations(processedInput);
+    // 1. 检查是否为多元一次方程组 (格式: ...;...)
+    if (processedInput.contains(';') && variables.length > 1) {
+      return _solveSystemOfLinearEquations(processedInput, variables);
     }
 
-    // 2. 检查是否为一元二次方程 (包含 x^2 或 x²)
-    if (processedInput.contains('x^2') || processedInput.contains('x²')) {
-      return _solveQuadraticEquation(processedInput.replaceAll('x²', 'x^2'));
+    // 2. 检查是否为一元二次方程 (包含 variable^2 或 variable²)
+    if (processedInput.contains('${mainVariable}^2') ||
+        processedInput.contains('${mainVariable}²')) {
+      return _solveQuadraticEquation(
+        processedInput.replaceAll('${mainVariable}²', '${mainVariable}^2'),
+        mainVariable,
+      );
     }
 
-    // 3. 检查是否为幂次方程 (x^n = a 的形式)
-    if (processedInput.contains('x^') && processedInput.contains('=')) {
-      return _solvePowerEquation(processedInput);
+    // 3. 检查是否为幂次方程 (variable^n = a 的形式)
+    if (processedInput.contains('${mainVariable}^') &&
+        processedInput.contains('=')) {
+      return _solvePowerEquation(processedInput, mainVariable);
     }
 
-    // 4. 检查是否为一元一次方程 (包含 x 但不包含 y 或 x^2)
-    if (processedInput.contains('x') && !processedInput.contains('y')) {
-      return _solveLinearEquation(processedInput);
+    // 4. 检查是否为一元一次方程 (包含主变量)
+    if (processedInput.contains(mainVariable)) {
+      return _solveLinearEquation(processedInput, mainVariable);
     }
 
-    // 4. 如果都不是，则作为简单表达式计算
+    // 如果都不是，则作为简单表达式计算
     try {
       return _solveSimpleExpression(input); // 使用原始输入以保留运算符
     } catch (e) {
@@ -287,7 +321,10 @@ class SolverService {
   }
 
   /// 2. 求解一元一次方程
-  CalculationResult _solveLinearEquation(String input) {
+  CalculationResult _solveLinearEquation(
+    String input, [
+    String variable = 'x',
+  ]) {
     final steps = <CalculationStep>[];
     // Parse the input to get LaTeX-formatted version
     final parser = Parser(input);
@@ -303,7 +340,7 @@ class SolverService {
       ),
     );
 
-    final parts = _parseLinearEquation(input);
+    final parts = _parseLinearEquation(input, variable);
     final a = parts.a, b = parts.b, c = parts.c, d = parts.d;
 
     final newA = _rationalFromDouble(a) - _rationalFromDouble(c);
@@ -313,9 +350,9 @@ class SolverService {
       CalculationStep(
         stepNumber: 1,
         title: '移项',
-        explanation: '将所有含 x 的项移到等式左边，常数项移到右边。',
+        explanation: '将所有含 ${variable} 的项移到等式左边，常数项移到右边。',
         formula:
-            '\$\$${a}x ${c >= 0 ? '-' : '+'} ${c.abs()}x = $d ${b >= 0 ? '-' : '+'} ${b.abs()}\$\$',
+            '\$\$${a}${variable} ${c >= 0 ? '-' : '+'} ${c.abs()}${variable} = $d ${b >= 0 ? '-' : '+'} ${b.abs()}\$\$',
       ),
     );
 
@@ -325,7 +362,7 @@ class SolverService {
         title: '合并同类项',
         explanation: '合并等式两边的项。',
         formula:
-            '\$\$${_formatNumber(newA.toDouble())}x = ${_formatNumber(newD.toDouble())}\$\$',
+            '\$\$${_formatNumber(newA.toDouble())}${variable} = ${_formatNumber(newD.toDouble())}\$\$',
       ),
     );
 
@@ -340,17 +377,23 @@ class SolverService {
     steps.add(
       CalculationStep(
         stepNumber: 3,
-        title: '求解 x',
-        explanation: '两边同时除以 x 的系数 ($newA)。',
-        formula: '\$\$x = \\frac{$newD}{$newA}\$\$',
+        title: '求解 ${variable}',
+        explanation: '两边同时除以 ${variable} 的系数 ($newA)。',
+        formula: '\$\$${variable} = \\frac{$newD}{$newA}\$\$',
       ),
     );
 
-    return CalculationResult(steps: steps, finalAnswer: '\$\$x = $x\$\$');
+    return CalculationResult(
+      steps: steps,
+      finalAnswer: '\$\$${variable} = $x\$\$',
+    );
   }
 
   /// 3. 求解一元二次方程 (升级版)
-  CalculationResult _solveQuadraticEquation(String input) {
+  CalculationResult _solveQuadraticEquation(
+    String input, [
+    String variable = 'x',
+  ]) {
     final steps = <CalculationStep>[];
 
     final eqParts = input.split('=');
@@ -376,8 +419,8 @@ class SolverService {
     // );
 
     // Also get numeric values for calculations
-    final leftCoeffs = _parsePolynomial(eqParts[0]);
-    final rightCoeffs = _parsePolynomial(eqParts[1]);
+    final leftCoeffs = _parsePolynomial(eqParts[0], variable);
+    final rightCoeffs = _parsePolynomial(eqParts[1], variable);
     final a = (leftCoeffs[2] ?? 0) - (rightCoeffs[2] ?? 0);
     final b = (leftCoeffs[1] ?? 0) - (rightCoeffs[1] ?? 0);
     final c = (leftCoeffs[0] ?? 0) - (rightCoeffs[0] ?? 0);
@@ -579,6 +622,7 @@ class SolverService {
     int n,
     double rightValue,
     String originalInput,
+    String variable,
   ) {
     final steps = <CalculationStep>[];
 
@@ -666,8 +710,8 @@ class SolverService {
     }
   }
 
-  /// 3.6. 求解幂次方程 (x^n = a 的形式)
-  CalculationResult _solvePowerEquation(String input) {
+  /// 3.6. 求解幂次方程 (variable^n = a 的形式)
+  CalculationResult _solvePowerEquation(String input, [String variable = 'x']) {
     final steps = <CalculationStep>[];
 
     // 解析方程
@@ -677,10 +721,12 @@ class SolverService {
     final leftSide = parts[0].trim();
     final rightSide = parts[1].trim();
 
-    // 检查左边是否为 x^n 的形式
-    final powerMatch = RegExp(r'^x\^(\d+)$').firstMatch(leftSide);
+    // 检查左边是否为 variable^n 的形式
+    final powerMatch = RegExp(
+      r'^${RegExp.escape(variable)}\^(\d+)$',
+    ).firstMatch(leftSide);
     if (powerMatch == null) {
-      throw Exception("不支持的幂次方程格式。当前支持 x^n = a 的形式。");
+      throw Exception("不支持的幂次方程格式。当前支持 ${variable}^n = a 的形式。");
     }
 
     final n = int.parse(powerMatch.group(1)!);
@@ -711,8 +757,8 @@ class SolverService {
       CalculationStep(
         stepNumber: 2,
         title: '对方程两边同时开 $n 次方',
-        explanation: '对方程两边同时开 $n 次方以解出 x。',
-        formula: '\$\$x = \\sqrt[$n]{$a}\$\$',
+        explanation: '对方程两边同时开 $n 次方以解出 ${variable}。',
+        formula: '\$\$${variable} = \\sqrt[$n]{$a}\$\$',
       ),
     );
 
@@ -740,18 +786,21 @@ class SolverService {
         stepNumber: 3,
         title: '计算结果',
         explanation: '计算开 $n 次方的结果。',
-        formula: '\$\$x = $resultStr\$\$',
+        formula: '\$\$${variable} = $resultStr\$\$',
       ),
     );
 
     return CalculationResult(
       steps: steps,
-      finalAnswer: '\$\$x = $resultStr\$\$',
+      finalAnswer: '\$\$${variable} = $resultStr\$\$',
     );
   }
 
   /// 4. 求解二元一次方程组
-  CalculationResult _solveSystemOfLinearEquations(String input) {
+  CalculationResult _solveSystemOfLinearEquations(
+    String input, [
+    Set<String> variables = const {'x', 'y'},
+  ]) {
     final steps = <CalculationStep>[];
     final equations = input.split(';');
     if (equations.length != 2) throw Exception("格式错误, 请用 ';' 分隔两个方程。");
@@ -998,7 +1047,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
 
   /// ---- 辅助函数 ----
 
-  String _expandExpressions(String input) {
+  String _expandExpressions(String input, [String variable = 'x']) {
     String result = input;
     int maxIterations = 10; // Prevent infinite loops
     int iterationCount = 0;
@@ -1017,7 +1066,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         }
 
         final factor = powerMatch.group(2)!;
-        final coeffs = _parsePolynomial(factor);
+        final coeffs = _parsePolynomial(factor, variable);
         final a = coeffs[1] ?? 0;
         final b = coeffs[0] ?? 0;
 
@@ -1040,8 +1089,8 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         final factor2 = factorMulMatch.group(2)!;
         log('Expanding: ($factor1) * ($factor2)');
 
-        final coeffs1 = _parsePolynomial(factor1);
-        final coeffs2 = _parsePolynomial(factor2);
+        final coeffs1 = _parsePolynomial(factor1, variable);
+        final coeffs2 = _parsePolynomial(factor2, variable);
         log('Coeffs1: $coeffs1, Coeffs2: $coeffs2');
 
         final a = coeffs1[1] ?? 0;
@@ -1078,8 +1127,8 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         }
 
         // Parse the term (coefficient and x power)
-        final termCoeffs = _parsePolynomial(termStr);
-        final factorCoeffs = _parsePolynomial(factorStr);
+        final termCoeffs = _parsePolynomial(termStr, variable);
+        final factorCoeffs = _parsePolynomial(factorStr, variable);
 
         final termA = termCoeffs[1] ?? 0; // x coefficient
         final termB = termCoeffs[0] ?? 0; // constant term
@@ -1122,8 +1171,8 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         final rightSide = parts[1];
 
         // 解析左边的多项式
-        final leftCoeffs = _parsePolynomial(leftSide);
-        final rightCoeffs = _parsePolynomial(rightSide);
+        final leftCoeffs = _parsePolynomial(leftSide, variable);
+        final rightCoeffs = _parsePolynomial(rightSide, variable);
 
         // 计算标准形式 ax^2 + bx + c = 0 的系数
         // A = B 转换为 A - B = 0，所以右边的系数要取相反数
@@ -1165,12 +1214,15 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     return result;
   }
 
-  LinearEquationParts _parseLinearEquation(String input) {
+  LinearEquationParts _parseLinearEquation(
+    String input, [
+    String variable = 'x',
+  ]) {
     final parts = input.split('=');
     if (parts.length != 2) throw Exception("方程格式错误，应包含一个'='。");
 
-    final leftCoeffs = _parsePolynomial(parts[0]);
-    final rightCoeffs = _parsePolynomial(parts[1]);
+    final leftCoeffs = _parsePolynomial(parts[0], variable);
+    final rightCoeffs = _parsePolynomial(parts[1], variable);
 
     return LinearEquationParts(
       (leftCoeffs[1] ?? 0.0),
@@ -1180,7 +1232,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     );
   }
 
-  Map<int, double> _parsePolynomial(String side) {
+  Map<int, double> _parsePolynomial(String side, [String variable = 'x']) {
     final coeffs = <int, double>{};
 
     // 如果输入包含括号，去掉括号
@@ -1189,9 +1241,12 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
       cleanSide = cleanSide.substring(1, cleanSide.length - 1);
     }
 
-    // 扩展模式以支持 sqrt 函数
+    // 扩展模式以支持 sqrt 函数，使用动态变量
+    final escapedVar = RegExp.escape(variable);
     final pattern = RegExp(
-      r'([+-]?(?:\d*\.?\d*|sqrt\(\d+\)))x(?:\^(\d+))?|([+-]?(?:\d*\.?\d*|sqrt\(\d+\)))',
+      r'([+-]?(?:\d*\.?\d*|sqrt\(\d+\)))' +
+          escapedVar +
+          r'(?:\^(\d+))?|([+-]?(?:\d*\.?\d*|sqrt\(\d+\)))',
     );
     var s = cleanSide.startsWith('+') || cleanSide.startsWith('-')
         ? cleanSide
@@ -1206,7 +1261,7 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
         final constValue = _parseCoefficientWithSqrt(constStr);
         coeffs[0] = (coeffs[0] ?? 0) + constValue;
       } else {
-        // x 的幂次项
+        // 变量的幂次项
         int power = match.group(2) != null ? int.parse(match.group(2)!) : 1;
         String coeffStr = match.group(1) ?? '+';
         final coeff = _parseCoefficientWithSqrt(coeffStr);
