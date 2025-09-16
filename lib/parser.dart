@@ -100,6 +100,21 @@ class Parser {
       if (current != ')') throw Exception("sqrt 缺少 )");
       eat();
       expr = SqrtExpr(inner);
+    } else if (input.startsWith("root", pos)) {
+      pos += 4;
+      if (current != '(') throw Exception("root 缺少 (");
+      eat();
+      var indexExpr = parse();
+      if (current != ',') throw Exception("root 缺少 ,");
+      eat();
+      var inner = parse();
+      if (current != ')') throw Exception("root 缺少 )");
+      eat();
+      if (indexExpr is IntExpr) {
+        expr = SqrtExpr(inner, indexExpr.value);
+      } else {
+        throw Exception("root 的第一个参数必须是整数");
+      }
     } else if (input.startsWith("cos", pos)) {
       pos += 3;
       if (current != '(') throw Exception("cos 缺少 (");

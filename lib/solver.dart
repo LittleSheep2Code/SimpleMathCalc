@@ -23,7 +23,24 @@ class SolverService {
       processedInput = _expandExpressions(processedInput);
     }
 
-    // 0. 检查是否是 a(expr)^2 = b 的形式
+    // 0. 检查是否是 (expr)^n = constant 的形式（任意次幂）
+    final powerEqMatch = RegExp(
+      r'^\(([^)]+)\)\^(\d+)\s*=\s*(.+)$',
+    ).firstMatch(cleanInput);
+    if (powerEqMatch != null) {
+      final exprStr = powerEqMatch.group(1)!;
+      final powerStr = powerEqMatch.group(2)!;
+      final rightStr = powerEqMatch.group(3)!;
+
+      final n = int.parse(powerStr);
+      final rightValue = double.tryParse(rightStr);
+
+      if (rightValue != null) {
+        return _solveGeneralPowerEquation(exprStr, n, rightValue, cleanInput);
+      }
+    }
+
+    // 0.5. 检查是否是 a(expr)^2 = b 的形式（向后兼容）
     final squareEqMatch = RegExp(
       r'^(\d*\.?\d*)\(([^)]+)\)\^2\s*=\s*(.+)$',
     ).firstMatch(cleanInput);
@@ -106,7 +123,12 @@ class SolverService {
       return _solveQuadraticEquation(processedInput.replaceAll('x²', 'x^2'));
     }
 
-    // 3. 检查是否为一元一次方程 (包含 x 但不包含 y 或 x^2)
+    // 3. 检查是否为幂次方程 (x^n = a 的形式)
+    if (processedInput.contains('x^') && processedInput.contains('=')) {
+      return _solvePowerEquation(processedInput);
+    }
+
+    // 4. 检查是否为一元一次方程 (包含 x 但不包含 y 或 x^2)
     if (processedInput.contains('x') && !processedInput.contains('y')) {
       return _solveLinearEquation(processedInput);
     }
@@ -423,6 +445,183 @@ class SolverService {
             '\$\$x_1 = ${-halfCoeff} + ${imagPart}i, \\quad x_2 = ${-halfCoeff} - ${imagPart}i\$\$',
       );
     }
+  }
+
+  /// 3.5. 求解通用幂次方程 ((expression)^n = constant 的形式)
+  CalculationResult _solveGeneralPowerEquation(
+    String exprStr,
+    int n,
+    double rightValue,
+    String originalInput,
+  ) {
+    final steps = <CalculationStep>[];
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 1,
+        title: '原方程',
+        explanation: '这是一个幂次方程。',
+        formula: '\$\$$originalInput\$\$',
+      ),
+    );
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 2,
+        title: '对方程两边同时开 $n 次方',
+        explanation: '对方程两边同时开 $n 次方以解出表达式。',
+        formula: '\$\$($exprStr) = \\sqrt[$n]{$rightValue}\$\$',
+      ),
+    );
+
+    // 计算右边的 n 次方根
+    final rootValue = pow(rightValue, 1.0 / n);
+
+    // 尝试格式化根的值
+    String rootStr;
+    if (rootValue.round() == rootValue) {
+      // 是整数
+      rootStr = rootValue.round().toString();
+    } else {
+      // 检查是否可以表示为根号形式
+      final rootExpr = SqrtExpr(IntExpr(rightValue.toInt()), n);
+      final simplified = rootExpr.simplify();
+      if (simplified is IntExpr) {
+        rootStr = simplified.value.toString();
+      } else {
+        rootStr = rootValue.toStringAsFixed(6).replaceAll(RegExp(r'\.0+$'), '');
+      }
+    }
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 3,
+        title: '计算 $n 次方根',
+        explanation: '计算右边的 $n 次方根。',
+        formula: '\$\$\\sqrt[$n]{$rightValue} = $rootStr\$\$',
+      ),
+    );
+
+    // 现在我们需要求解 expression = rootValue 的方程
+    final newEquation = '$exprStr=$rootStr';
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 4,
+        title: '化简为新方程',
+        explanation: '现在我们需要解方程 $exprStr = $rootStr。',
+        formula: '\$\$($exprStr) = $rootStr\$\$',
+      ),
+    );
+
+    // 递归调用求解器来处理新的方程
+    try {
+      final result = solve(newEquation);
+
+      // 添加后续步骤
+      for (int i = 0; i < result.steps.length; i++) {
+        steps.add(
+          CalculationStep(
+            stepNumber: 5 + i,
+            title: result.steps[i].title,
+            explanation: result.steps[i].explanation,
+            formula: result.steps[i].formula,
+          ),
+        );
+      }
+
+      return CalculationResult(steps: steps, finalAnswer: result.finalAnswer);
+    } catch (e) {
+      // 如果递归求解失败，返回当前步骤
+      return CalculationResult(
+        steps: steps,
+        finalAnswer: '\$\$($exprStr) = $rootStr\$\$',
+      );
+    }
+  }
+
+  /// 3.6. 求解幂次方程 (x^n = a 的形式)
+  CalculationResult _solvePowerEquation(String input) {
+    final steps = <CalculationStep>[];
+
+    // 解析方程
+    final parts = input.split('=');
+    if (parts.length != 2) throw Exception("方程格式错误，应包含一个 '='。");
+
+    final leftSide = parts[0].trim();
+    final rightSide = parts[1].trim();
+
+    // 检查左边是否为 x^n 的形式
+    final powerMatch = RegExp(r'^x\^(\d+)$').firstMatch(leftSide);
+    if (powerMatch == null) {
+      throw Exception("不支持的幂次方程格式。当前支持 x^n = a 的形式。");
+    }
+
+    final n = int.parse(powerMatch.group(1)!);
+    final a = double.tryParse(rightSide);
+
+    if (a == null) {
+      throw Exception("方程右边必须是数字。");
+    }
+
+    if (n <= 0) {
+      throw Exception("幂次必须是正整数。");
+    }
+
+    if (a < 0 && n % 2 == 0) {
+      throw Exception("当幂次为偶数时，右边不能为负数（在实数范围内无解）。");
+    }
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 1,
+        title: '原方程',
+        explanation: '这是一个幂次方程。',
+        formula: '\$\$$input\$\$',
+      ),
+    );
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 2,
+        title: '对方程两边同时开 $n 次方',
+        explanation: '对方程两边同时开 $n 次方以解出 x。',
+        formula: '\$\$x = \\sqrt[$n]{$a}\$\$',
+      ),
+    );
+
+    // 计算结果
+    final result = pow(a, 1.0 / n);
+
+    // 尝试格式化为精确形式
+    String resultStr;
+    if (result.round() == result) {
+      // 是整数
+      resultStr = result.round().toString();
+    } else {
+      // 检查是否可以表示为根号形式
+      final rootExpr = SqrtExpr(IntExpr(a.toInt()), n);
+      final simplified = rootExpr.simplify();
+      if (simplified is IntExpr) {
+        resultStr = simplified.value.toString();
+      } else {
+        resultStr = result.toStringAsFixed(6).replaceAll(RegExp(r'\.0+$'), '');
+      }
+    }
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 3,
+        title: '计算结果',
+        explanation: '计算开 $n 次方的结果。',
+        formula: '\$\$x = $resultStr\$\$',
+      ),
+    );
+
+    return CalculationResult(
+      steps: steps,
+      finalAnswer: '\$\$x = $resultStr\$\$',
+    );
   }
 
   /// 4. 求解二元一次方程组

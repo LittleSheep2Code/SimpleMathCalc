@@ -197,11 +197,17 @@ class AddExpr extends Expr {
       return DoubleExpr(l.value + r.numerator / r.denominator);
     }
 
-    // 合并同类的 sqrt 项: a*sqrt(X) + b*sqrt(X) = (a+b)*sqrt(X)
-    var a = _asSqrtTerm(l);
-    var b = _asSqrtTerm(r);
-    if (a != null && b != null && a.inner.toString() == b.inner.toString()) {
-      return MulExpr(IntExpr(a.coef + b.coef), SqrtExpr(a.inner)).simplify();
+    // 合并同类的根项: a*root(X,n) + b*root(X,n) = (a+b)*root(X,n)
+    var a = _asRootTerm(l);
+    var b = _asRootTerm(r);
+    if (a != null &&
+        b != null &&
+        a.inner.toString() == b.inner.toString() &&
+        a.index == b.index) {
+      return MulExpr(
+        IntExpr(a.coef + b.coef),
+        SqrtExpr(a.inner, a.index),
+      ).simplify();
     }
 
     return AddExpr(l, r);
@@ -286,11 +292,17 @@ class SubExpr extends Expr {
       return DoubleExpr(l.value - r.numerator / r.denominator);
     }
 
-    // 处理同类 sqrt 项: a*sqrt(X) - b*sqrt(X) = (a-b)*sqrt(X)
-    var a = _asSqrtTerm(l);
-    var b = _asSqrtTerm(r);
-    if (a != null && b != null && a.inner.toString() == b.inner.toString()) {
-      return MulExpr(IntExpr(a.coef - b.coef), SqrtExpr(a.inner)).simplify();
+    // 处理同类根项: a*root(X,n) - b*root(X,n) = (a-b)*root(X,n)
+    var a = _asRootTerm(l);
+    var b = _asRootTerm(r);
+    if (a != null &&
+        b != null &&
+        a.inner.toString() == b.inner.toString() &&
+        a.index == b.index) {
+      return MulExpr(
+        IntExpr(a.coef - b.coef),
+        SqrtExpr(a.inner, a.index),
+      ).simplify();
     }
 
     return SubExpr(l, r);
@@ -390,11 +402,9 @@ class MulExpr extends Expr {
       return DoubleExpr(l.value * r.numerator / r.denominator);
     }
 
-    // sqrt * sqrt: sqrt(a)*sqrt(a) = a
-    if (l is SqrtExpr &&
-        r is SqrtExpr &&
-        l.inner.toString() == r.inner.toString()) {
-      return l.inner.simplify();
+    // 根号相乘: root(a,n)*root(b,n) = root(a*b,n)
+    if (l is SqrtExpr && r is SqrtExpr && l.index == r.index) {
+      return SqrtExpr(MulExpr(l.inner, r.inner), l.index).simplify();
     }
 
     // int * sqrt -> 保留形式，之后 simplify() 再处理约分
@@ -523,28 +533,51 @@ class DivExpr extends Expr {
 // === SqrtExpr.evaluate ===
 class SqrtExpr extends Expr {
   final Expr inner;
-  SqrtExpr(this.inner);
+  final int index; // 根的次数，默认为2（平方根）
+  SqrtExpr(this.inner, [this.index = 2]);
 
   @override
   Expr simplify() {
     var i = inner.simplify();
     if (i is IntExpr) {
       int n = i.value;
-      int root = sqrt(n).floor();
-      if (root * root == n) {
-        return IntExpr(root); // 完全平方数
-      }
-      // 尝试拆分 sqrt，比如 sqrt(8) = 2*sqrt(2)
-      for (int k = root; k > 1; k--) {
-        if (n % (k * k) == 0) {
-          return MulExpr(
-            IntExpr(k),
-            SqrtExpr(IntExpr(n ~/ (k * k))),
-          ).simplify();
+      if (index == 2) {
+        // 平方根的特殊处理
+        int root = sqrt(n).floor();
+        if (root * root == n) {
+          return IntExpr(root); // 完全平方数
+        }
+        // 尝试拆分 sqrt，比如 sqrt(8) = 2*sqrt(2)
+        for (int k = root; k > 1; k--) {
+          if (n % (k * k) == 0) {
+            return MulExpr(
+              IntExpr(k),
+              SqrtExpr(IntExpr(n ~/ (k * k))),
+            ).simplify();
+          }
+        }
+      } else {
+        // 任意次根的处理
+        // 检查是否为完全 n 次幂
+        if (n >= 0) {
+          int root = (pow(n, 1.0 / index)).round();
+          if ((pow(root, index) - n).abs() < 1e-10) {
+            return IntExpr(root); // 完全 n 次幂
+          }
+          // 尝试提取系数，比如对于立方根，27^(1/3) = 3
+          for (int k = root; k > 1; k--) {
+            int power = (pow(k, index)).round();
+            if (n % power == 0) {
+              return MulExpr(
+                IntExpr(k),
+                SqrtExpr(IntExpr(n ~/ power), index),
+              ).simplify();
+            }
+          }
         }
       }
     }
-    return SqrtExpr(i);
+    return SqrtExpr(i, index);
   }
 
   @override
@@ -552,27 +585,50 @@ class SqrtExpr extends Expr {
     var i = inner.evaluate();
     if (i is IntExpr) {
       int n = i.value;
-      int root = sqrt(n).floor();
-      if (root * root == n) return IntExpr(root);
-      // 拆平方因子并返回 k * sqrt(remain)
-      for (int k = root; k > 1; k--) {
-        if (n % (k * k) == 0) {
-          return MulExpr(
-            IntExpr(k),
-            SqrtExpr(IntExpr(n ~/ (k * k))),
-          ).evaluate();
+      if (index == 2) {
+        // 平方根的特殊处理
+        int root = sqrt(n).floor();
+        if (root * root == n) return IntExpr(root);
+        // 拆平方因子并返回 k * sqrt(remain)
+        for (int k = root; k > 1; k--) {
+          if (n % (k * k) == 0) {
+            return MulExpr(
+              IntExpr(k),
+              SqrtExpr(IntExpr(n ~/ (k * k))),
+            ).evaluate();
+          }
+        }
+      } else {
+        // 任意次根的数值计算
+        if (n >= 0) {
+          double result = pow(n.toDouble(), 1.0 / index).toDouble();
+          return DoubleExpr(result);
         }
       }
     }
-    return SqrtExpr(i);
+    if (i is DoubleExpr) {
+      double result = pow(i.value, 1.0 / index).toDouble();
+      return DoubleExpr(result);
+    }
+    if (i is FractionExpr) {
+      double result = pow(i.numerator / i.denominator, 1.0 / index).toDouble();
+      return DoubleExpr(result);
+    }
+    return SqrtExpr(i, index);
   }
 
   @override
   Expr substitute(String varName, Expr value) =>
-      SqrtExpr(inner.substitute(varName, value));
+      SqrtExpr(inner.substitute(varName, value), index);
 
   @override
-  String toString() => "\\sqrt{${inner.toString()}}";
+  String toString() {
+    if (index == 2) {
+      return "\\sqrt{${inner.toString()}}";
+    } else {
+      return "\\sqrt[$index]{${inner.toString()}}";
+    }
+  }
 }
 
 // === CosExpr ===
@@ -970,22 +1026,31 @@ class PercentExpr extends Expr {
   String toString() => "$inner%";
 }
 
-// === 辅助：识别 a * sqrt(X) 形式 ===
-class _SqrtTerm {
+// 扩展 _SqrtTerm 以支持任意次根
+class _RootTerm {
   final int coef;
   final Expr inner;
-  _SqrtTerm(this.coef, this.inner);
+  final int index;
+  _RootTerm(this.coef, this.inner, this.index);
 }
 
-_SqrtTerm? _asSqrtTerm(Expr e) {
-  if (e is SqrtExpr) return _SqrtTerm(1, e.inner);
+_RootTerm? _asRootTerm(Expr e) {
+  if (e is SqrtExpr) return _RootTerm(1, e.inner, e.index);
   if (e is MulExpr) {
     // 可能为 Int * Sqrt or Sqrt * Int
     if (e.left is IntExpr && e.right is SqrtExpr) {
-      return _SqrtTerm((e.left as IntExpr).value, (e.right as SqrtExpr).inner);
+      return _RootTerm(
+        (e.left as IntExpr).value,
+        (e.right as SqrtExpr).inner,
+        (e.right as SqrtExpr).index,
+      );
     }
     if (e.right is IntExpr && e.left is SqrtExpr) {
-      return _SqrtTerm((e.right as IntExpr).value, (e.left as SqrtExpr).inner);
+      return _RootTerm(
+        (e.right as IntExpr).value,
+        (e.left as SqrtExpr).inner,
+        (e.left as SqrtExpr).index,
+      );
     }
   }
   return null;
