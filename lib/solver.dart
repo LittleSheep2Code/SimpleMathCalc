@@ -12,6 +12,18 @@ class LinearEquationParts {
 }
 
 class SolverService {
+  /// 格式化数字，移除不必要的尾随零
+  String _formatNumber(double value, {int precision = 4}) {
+    String formatted = value.toStringAsFixed(precision);
+    // 移除尾随的零和小数点
+    formatted = formatted.replaceAll(RegExp(r'\.0+$'), '');
+    // 如果最后是小数点，也移除
+    if (formatted.endsWith('.')) {
+      formatted = formatted.substring(0, formatted.length - 1);
+    }
+    return formatted;
+  }
+
   /// 主入口方法，识别并分发任务
   CalculationResult solve(String input) {
     // 预处理输入字符串
@@ -248,7 +260,7 @@ class SolverService {
         title: '合并同类项',
         explanation: '合并等式两边的项。',
         formula:
-            '\$\$${newA.toDouble().toStringAsFixed(4)}x = ${newD.toDouble().toStringAsFixed(4)}\$\$',
+            '\$\$${_formatNumber(newA.toDouble())}x = ${_formatNumber(newD.toDouble())}\$\$',
       ),
     );
 
@@ -489,7 +501,7 @@ class SolverService {
       if (simplified is IntExpr) {
         rootStr = simplified.value.toString();
       } else {
-        rootStr = rootValue.toStringAsFixed(6).replaceAll(RegExp(r'\.0+$'), '');
+        rootStr = _formatNumber(rootValue.toDouble(), precision: 6);
       }
     }
 
@@ -605,7 +617,7 @@ class SolverService {
       if (simplified is IntExpr) {
         resultStr = simplified.value.toString();
       } else {
-        resultStr = result.toStringAsFixed(6).replaceAll(RegExp(r'\.0+$'), '');
+        resultStr = _formatNumber(result.toDouble(), precision: 6);
       }
     }
 
@@ -680,8 +692,8 @@ ${a2}x ${b2 >= 0 ? '+' : ''} ${b2}y = $c2 & (2)
             '''
 \$\$
 \\begin{cases}
-${newA1.toDouble().toStringAsFixed(2)}x ${b1 * b2 >= 0 ? '+' : ''} ${(b1 * b2).toStringAsFixed(2)}y = ${newC1.toDouble().toStringAsFixed(2)} & (3) \\\\
-${newA2.toDouble().toStringAsFixed(2)}x ${b1 * b2 >= 0 ? '+' : ''} ${(b1 * b2).toStringAsFixed(2)}y = ${newC2.toDouble().toStringAsFixed(2)} & (4)
+${_formatNumber(newA1.toDouble(), precision: 2)}x ${b1 * b2 >= 0 ? '+' : ''} ${_formatNumber((b1 * b2), precision: 2)}y = ${_formatNumber(newC1.toDouble(), precision: 2)} & (3) \\\\
+${_formatNumber(newA2.toDouble(), precision: 2)}x ${b1 * b2 >= 0 ? '+' : ''} ${_formatNumber((b1 * b2), precision: 2)}y = ${_formatNumber(newC2.toDouble(), precision: 2)} & (4)
 \\end{cases}
 \$\$
 ''',
@@ -697,7 +709,7 @@ ${newA2.toDouble().toStringAsFixed(2)}x ${b1 * b2 >= 0 ? '+' : ''} ${(b1 * b2).t
         title: '相减',
         explanation: '将方程(3)减去方程(4)，得到一个只含 x 的方程。',
         formula:
-            '\$\$(${newA1.toDouble().toStringAsFixed(2)} - ${newA2.toDouble().toStringAsFixed(2)})x = ${newC1.toDouble().toStringAsFixed(2)} - ${newC2.toDouble().toStringAsFixed(2)} \\Rightarrow ${xCoeff.toDouble().toStringAsFixed(2)}x = ${constCoeff.toDouble().toStringAsFixed(2)}\$\$',
+            '\$\$(${_formatNumber(newA1.toDouble(), precision: 2)} - ${_formatNumber(newA2.toDouble(), precision: 2)})x = ${_formatNumber(newC1.toDouble(), precision: 2)} - ${_formatNumber(newC2.toDouble(), precision: 2)} \\Rightarrow ${_formatNumber(xCoeff.toDouble(), precision: 2)}x = ${_formatNumber(constCoeff.toDouble(), precision: 2)}\$\$',
       ),
     );
 
@@ -707,7 +719,7 @@ ${newA2.toDouble().toStringAsFixed(2)}x ${b1 * b2 >= 0 ? '+' : ''} ${(b1 * b2).t
         stepNumber: 3,
         title: '解出 x',
         explanation: '求解上述方程得到 x 的值。',
-        formula: '\$\$x = $x\$\$',
+        formula: '\$\$x = ${_formatNumber(x.toDouble())}\$\$',
       ),
     );
 
@@ -719,12 +731,12 @@ ${newA2.toDouble().toStringAsFixed(2)}x ${b1 * b2 >= 0 ? '+' : ''} ${(b1 * b2).t
         CalculationStep(
           stepNumber: 4,
           title: '回代求解 y',
-          explanation: '将 x = ${x.toDouble().toStringAsFixed(4)} 代入原方程(2)中。',
+          explanation: '将 x = ${_formatNumber(x.toDouble())} 代入原方程(2)中。',
           formula:
               '''
 \$\$
 \\begin{aligned}
-$a2(${x.toDouble().toStringAsFixed(4)}) + ${b2}y &= $c2 \\\\
+$a2(${_formatNumber(x.toDouble())}) + ${b2}y &= $c2 \\\\
 ${a2 * x.toDouble()} + ${b2}y &= $c2 \\\\
 ${b2}y &= $c2 - ${a2 * x.toDouble()} \\\\
 ${b2}y &= ${c2 - a2 * x.toDouble()}
@@ -738,13 +750,13 @@ ${b2}y &= ${c2 - a2 * x.toDouble()}
           stepNumber: 5,
           title: '解出 y',
           explanation: '求解得到 y 的值。',
-          formula: '\$\$y = ${y.toStringAsFixed(4)}\$\$',
+          formula: '\$\$y = ${_formatNumber(y.toDouble())}\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
         finalAnswer:
-            '\$\$x = ${x.toDouble().toStringAsFixed(4)}, \\quad y = ${y.toStringAsFixed(4)}\$\$',
+            '\$\$x = ${_formatNumber(x.toDouble())}, \\quad y = ${_formatNumber(y.toDouble())}\$\$',
       );
     } else {
       final yCoeff = b1;
@@ -754,12 +766,12 @@ ${b2}y &= ${c2 - a2 * x.toDouble()}
         CalculationStep(
           stepNumber: 4,
           title: '回代求解 y',
-          explanation: '将 x = ${x.toDouble().toStringAsFixed(4)} 代入原方程(1)中。',
+          explanation: '将 x = ${_formatNumber(x.toDouble())} 代入原方程(1)中。',
           formula:
               '''
 \$\$
 \\begin{aligned}
-$a1(${x.toDouble().toStringAsFixed(4)}) + ${b1}y &= $c1 \\\\
+$a1(${_formatNumber(x.toDouble())}) + ${b1}y &= $c1 \\\\
 ${a1 * x.toDouble()} + ${b1}y &= $c1 \\\\
 ${b1}y &= $c1 - ${a1 * x.toDouble()} \\\\
 ${b1}y &= ${c1 - a1 * x.toDouble()}
@@ -773,13 +785,13 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
           stepNumber: 5,
           title: '解出 y',
           explanation: '求解得到 y 的值。',
-          formula: '\$\$y = ${y.toStringAsFixed(4)}\$\$',
+          formula: '\$\$y = ${_formatNumber(y.toDouble())}\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
         finalAnswer:
-            '\$\$x = ${x.toDouble().toStringAsFixed(4)}, \\quad y = ${y.toStringAsFixed(4)}\$\$',
+            '\$\$x = ${_formatNumber(x.toDouble())}, \\quad y = ${_formatNumber(y.toDouble())}\$\$',
       );
     }
   }
