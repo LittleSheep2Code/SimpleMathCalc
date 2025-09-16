@@ -24,6 +24,65 @@ class SolverService {
     return formatted;
   }
 
+  /// 获取整数的所有因数（包括正负）
+  List<int> _getAllDivisors(int n) {
+    List<int> divisors = [];
+    int absN = n.abs();
+    for (int i = 1; i <= absN; i++) {
+      if (absN % i == 0) {
+        divisors.add(i);
+        if (i != absN) divisors.add(-i);
+      }
+    }
+    return divisors;
+  }
+
+  /// 尝试对二次方程进行因式分解
+  String? _tryFactorQuadratic(double a, double b, double c) {
+    if (a != a.round() || b != b.round() || c != c.round()) return null;
+    int aa = a.round(), bb = b.round(), cc = c.round();
+    if (aa == 0) return null; // 不是二次方程
+    var divisorsA = _getAllDivisors(aa);
+    var divisorsC = _getAllDivisors(cc);
+    for (int p in divisorsA) {
+      int r = aa ~/ p;
+      for (int q in divisorsC) {
+        int s = cc ~/ q;
+        if (p * s + q * r == bb) {
+          String factor1 = _formatFactorTerm(p, q);
+          String factor2 = _formatFactorTerm(r, s);
+          return '($factor1)($factor2)';
+        }
+      }
+    }
+    return null;
+  }
+
+  /// 格式化因式中的项
+  String _formatFactorTerm(int coeff, int constTerm) {
+    String result = '';
+    if (coeff != 0) {
+      if (coeff == 1)
+        result += 'x';
+      else if (coeff == -1)
+        result += '-x';
+      else
+        result += '${coeff}x';
+    }
+    if (constTerm != 0) {
+      if (result.isNotEmpty) {
+        if (constTerm > 0)
+          result += ' + $constTerm';
+        else
+          result += ' - ${-constTerm}';
+      } else {
+        result += constTerm.toString();
+      }
+    }
+    if (result.isEmpty) result = '0';
+    return result;
+  }
+
   /// 主入口方法，识别并分发任务
   CalculationResult solve(String input) {
     // 预处理输入字符串
@@ -330,14 +389,67 @@ class SolverService {
       ),
     );
 
-    steps.add(
-      CalculationStep(
-        stepNumber: 2,
-        title: '选择解法',
-        explanation: '我们选择使用配方法。',
-        formula: r'配方法：$x^2 + \frac{b}{a}x + \frac{c}{a} = 0$',
-      ),
-    );
+    final factored = _tryFactorQuadratic(a, b, c);
+    if (factored != null) {
+      steps.add(
+        CalculationStep(
+          stepNumber: 2,
+          title: '选择解法',
+          explanation: '我们选择使用因式分解法。',
+          formula: '\$\$ax^2 + bx + c = 0\$\$',
+        ),
+      );
+      steps.add(
+        CalculationStep(
+          stepNumber: 3,
+          title: '因式分解',
+          explanation: '将二次方程分解为两个一次因式的乘积。',
+          formula: '\$\$$factored = 0\$\$',
+        ),
+      );
+      final discriminant = b * b - 4 * a * c;
+      final roots = _calculateSymbolicRoots(
+        a,
+        b,
+        discriminant,
+        _getSymbolicSquareRoot(discriminant),
+      );
+      steps.add(
+        CalculationStep(
+          stepNumber: 4,
+          title: '解出 x',
+          explanation: '分别令每个因式为零，解出 x 的值。',
+          formula: roots.formula,
+        ),
+      );
+      return CalculationResult(steps: steps, finalAnswer: roots.finalAnswer);
+    } else {
+      // 检查系数是否都是整数
+      bool allIntegers = a == a.round() && b == b.round() && c == c.round();
+
+      if (!allIntegers) {
+        // 使用公式法
+        steps.add(
+          CalculationStep(
+            stepNumber: 2,
+            title: '选择解法',
+            explanation: '系数包含非整数，我们选择使用公式法。',
+            formula: r'公式法：$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$',
+          ),
+        );
+        return _solveQuadraticByFormula(a, b, c, steps);
+      } else {
+        // 使用配方法
+        steps.add(
+          CalculationStep(
+            stepNumber: 2,
+            title: '选择解法',
+            explanation: '我们选择使用配方法。',
+            formula: r'配方法：$x^2 + \frac{b}{a}x + \frac{c}{a} = 0$',
+          ),
+        );
+      }
+    }
 
     // Step 1: Divide by a if a ≠ 1
     String currentEquation;
@@ -1453,19 +1565,24 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     final intValue = value.toInt();
     if (value == intValue.toDouble()) {
       // 尝试找到最大的完全平方因子
-      int maxK = 1;
+      int maxSquareRoot = 1;
       for (int k = 2; k * k <= intValue; k++) {
         if (intValue % (k * k) == 0) {
-          maxK = k;
+          maxSquareRoot = k;
         }
       }
 
-      if (maxK > 1) {
-        final remaining = intValue ~/ (maxK * maxK);
+      if (maxSquareRoot > 1) {
+        final remaining = intValue ~/ (maxSquareRoot * maxSquareRoot);
         if (remaining > 1) {
-          return '$maxK\\sqrt{$remaining}';
+          return '$maxSquareRoot\\sqrt{$remaining}';
+        } else if (remaining == 1) {
+          return '$maxSquareRoot';
         }
       }
+
+      // 如果是整数但不是完全平方数，且没有找到 k√m 形式，返回 √value
+      return '\\sqrt{$intValue}';
     }
 
     return null; // 无法用简单符号形式表示
@@ -1613,5 +1730,72 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
   String _formatRational(Rational r) {
     if (r.denominator == BigInt.one) return r.numerator.toString();
     return '\\frac{${r.numerator}}{${r.denominator}}';
+  }
+
+  /// 使用公式法求解一元二次方程
+  CalculationResult _solveQuadraticByFormula(
+    double a,
+    double b,
+    double c,
+    List<CalculationStep> steps,
+  ) {
+    // Step 3: 计算判别式
+    final discriminant = b * b - 4 * a * c;
+    steps.add(
+      CalculationStep(
+        stepNumber: 3,
+        title: '计算判别式',
+        explanation: '判别式 Δ = b² - 4ac，用于判断方程根的情况。',
+        formula:
+            '\$\$\\Delta = b^2 - 4ac = ${b}^2 - 4 \\cdot ${a} \\cdot ${c} = $discriminant\$\$',
+      ),
+    );
+
+    // Step 4: 应用公式法
+    final denominator = 2 * a;
+    final sqrtDiscriminant = sqrt(discriminant.abs());
+
+    String formula;
+    String finalAnswer;
+
+    if (discriminant > 0) {
+      // 两个实数根
+      final x1 = (-b + sqrtDiscriminant) / denominator;
+      final x2 = (-b - sqrtDiscriminant) / denominator;
+
+      formula =
+          '\$\$x = \\frac{-b \\pm \\sqrt{\\Delta}}{2a} = \\frac{${-b} \\pm \\sqrt{$discriminant}}{${denominator}}\$\$';
+      finalAnswer = '\$\$x_1 = ${x1}, \\quad x_2 = ${x2}\$\$';
+    } else if (discriminant == 0) {
+      // 一个实数根（重根）
+      final x = -b / denominator;
+
+      formula = '\$\$x = \\frac{-b}{2a} = \\frac{${-b}}{${denominator}}\$\$';
+      finalAnswer = '\$\$x = ${x}\$\$';
+    } else {
+      // 两个虚数根
+      final realPart = -b / denominator;
+      final imagPart = sqrtDiscriminant / denominator.abs();
+
+      formula =
+          '\$\$x = \\frac{-b \\pm \\sqrt{\\Delta}}{2a} = \\frac{${-b} \\pm \\sqrt{${discriminant}}}{${denominator}}\$\$';
+      finalAnswer =
+          '\$\$x_1 = ${realPart} + ${imagPart}i, \\quad x_2 = ${realPart} - ${imagPart}i\$\$';
+    }
+
+    steps.add(
+      CalculationStep(
+        stepNumber: 4,
+        title: '应用公式法',
+        explanation: discriminant > 0
+            ? '判别式大于0，有两个不相等的实数根。'
+            : discriminant == 0
+            ? '判别式等于0，有两个相等的实数根。'
+            : '判别式小于0，在实数范围内无解，但有虚数根。',
+        formula: formula,
+      ),
+    );
+
+    return CalculationResult(steps: steps, finalAnswer: finalAnswer);
   }
 }
