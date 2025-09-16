@@ -68,19 +68,21 @@ class SolverService {
   String _formatFactorTerm(int coeff, int constTerm, [String variable = 'x']) {
     String result = '';
     if (coeff != 0) {
-      if (coeff == 1)
+      if (coeff == 1) {
         result += variable;
-      else if (coeff == -1)
+      } else if (coeff == -1) {
         result += '-$variable';
-      else
-        result += '${coeff}$variable';
+      } else {
+        result += '$coeff$variable';
+      }
     }
     if (constTerm != 0) {
       if (result.isNotEmpty) {
-        if (constTerm > 0)
+        if (constTerm > 0) {
           result += ' + $constTerm';
-        else
+        } else {
           result += ' - ${-constTerm}';
+        }
       } else {
         result += constTerm.toString();
       }
@@ -202,12 +204,12 @@ class SolverService {
                 title: '开方',
                 explanation: '对方程两边同时开平方。',
                 formula:
-                    '\$\$${mainVariable} ${h >= 0 ? '+' : ''}$h = \\pm \\sqrt{\\frac{${innerRat.numerator}}{${innerRat.denominator}}}\$\$',
+                    '\$\$$mainVariable ${h >= 0 ? '+' : ''}$h = \\pm \\sqrt{\\frac{${innerRat.numerator}}{${innerRat.denominator}}}\$\$',
               ),
               CalculationStep(
                 stepNumber: 4,
-                title: '解出 ${mainVariable}',
-                explanation: '分别取正负号，解出 ${mainVariable} 的值。',
+                title: '解出 $mainVariable',
+                explanation: '分别取正负号，解出 $mainVariable 的值。',
                 formula:
                     '\$\$${mainVariable}_1 = $x1Str, \\quad ${mainVariable}_2 = $x2Str\$\$',
               ),
@@ -225,16 +227,16 @@ class SolverService {
     }
 
     // 2. 检查是否为一元二次方程 (包含 variable^2 或 variable²)
-    if (processedInput.contains('${mainVariable}^2') ||
-        processedInput.contains('${mainVariable}²')) {
+    if (processedInput.contains('$mainVariable^2') ||
+        processedInput.contains('$mainVariable²')) {
       return _solveQuadraticEquation(
-        processedInput.replaceAll('${mainVariable}²', '${mainVariable}^2'),
+        processedInput.replaceAll('$mainVariable²', '$mainVariable^2'),
         mainVariable,
       );
     }
 
     // 3. 检查是否为幂次方程 (variable^n = a 的形式)
-    if (processedInput.contains('${mainVariable}^') &&
+    if (processedInput.contains('$mainVariable^') &&
         processedInput.contains('=')) {
       return _solvePowerEquation(processedInput, mainVariable);
     }
@@ -350,9 +352,9 @@ class SolverService {
       CalculationStep(
         stepNumber: 1,
         title: '移项',
-        explanation: '将所有含 ${variable} 的项移到等式左边，常数项移到右边。',
+        explanation: '将所有含 $variable 的项移到等式左边，常数项移到右边。',
         formula:
-            '\$\$${a}${variable} ${c >= 0 ? '-' : '+'} ${c.abs()}${variable} = $d ${b >= 0 ? '-' : '+'} ${b.abs()}\$\$',
+            '\$\$$a$variable ${c >= 0 ? '-' : '+'} ${c.abs()}$variable = $d ${b >= 0 ? '-' : '+'} ${b.abs()}\$\$',
       ),
     );
 
@@ -362,7 +364,7 @@ class SolverService {
         title: '合并同类项',
         explanation: '合并等式两边的项。',
         formula:
-            '\$\$${_formatNumber(newA.toDouble())}${variable} = ${_formatNumber(newD.toDouble())}\$\$',
+            '\$\$${_formatNumber(newA.toDouble())}$variable = ${_formatNumber(newD.toDouble())}\$\$',
       ),
     );
 
@@ -377,15 +379,15 @@ class SolverService {
     steps.add(
       CalculationStep(
         stepNumber: 3,
-        title: '求解 ${variable}',
-        explanation: '两边同时除以 ${variable} 的系数 ($newA)。',
-        formula: '\$\$${variable} = \\frac{$newD}{$newA}\$\$',
+        title: '求解 $variable',
+        explanation: '两边同时除以 $variable 的系数 ($newA)。',
+        formula: '\$\$$variable = \\frac{$newD}{$newA}\$\$',
       ),
     );
 
     return CalculationResult(
       steps: steps,
-      finalAnswer: '\$\$${variable} = $x\$\$',
+      finalAnswer: '\$\$$variable = $x\$\$',
     );
   }
 
@@ -726,7 +728,7 @@ class SolverService {
       r'^${RegExp.escape(variable)}\^(\d+)$',
     ).firstMatch(leftSide);
     if (powerMatch == null) {
-      throw Exception("不支持的幂次方程格式。当前支持 ${variable}^n = a 的形式。");
+      throw Exception("不支持的幂次方程格式。当前支持 $variable^n = a 的形式。");
     }
 
     final n = int.parse(powerMatch.group(1)!);
@@ -757,8 +759,8 @@ class SolverService {
       CalculationStep(
         stepNumber: 2,
         title: '对方程两边同时开 $n 次方',
-        explanation: '对方程两边同时开 $n 次方以解出 ${variable}。',
-        formula: '\$\$${variable} = \\sqrt[$n]{$a}\$\$',
+        explanation: '对方程两边同时开 $n 次方以解出 $variable。',
+        formula: '\$\$$variable = \\sqrt[$n]{$a}\$\$',
       ),
     );
 
@@ -786,13 +788,13 @@ class SolverService {
         stepNumber: 3,
         title: '计算结果',
         explanation: '计算开 $n 次方的结果。',
-        formula: '\$\$${variable} = $resultStr\$\$',
+        formula: '\$\$$variable = $resultStr\$\$',
       ),
     );
 
     return CalculationResult(
       steps: steps,
-      finalAnswer: '\$\$${variable} = $resultStr\$\$',
+      finalAnswer: '\$\$$variable = $resultStr\$\$',
     );
   }
 
