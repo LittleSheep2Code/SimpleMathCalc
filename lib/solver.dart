@@ -7,21 +7,29 @@ import 'models/calculation_step.dart';
 
 /// 帮助解析一元一次方程 ax+b=cx+d 的辅助类
 class LinearEquationParts {
-  final double a, b, c, d;
+  final Rational a, b, c, d;
   LinearEquationParts(this.a, this.b, this.c, this.d);
 }
 
 class SolverService {
   /// 格式化数字，移除不必要的尾随零
-  String _formatNumber(double value, {int precision = 4}) {
-    String formatted = value.toStringAsFixed(precision);
-    // 移除尾随的零和小数点
-    formatted = formatted.replaceAll(RegExp(r'\.0+$'), '');
-    // 如果最后是小数点，也移除
-    if (formatted.endsWith('.')) {
-      formatted = formatted.substring(0, formatted.length - 1);
+  String _formatNumber(dynamic value, {int precision = 4}) {
+    if (value is Rational) {
+      return _formatRational(value);
+    } else if (value is FractionExpr) {
+      return '\\frac{${value.numerator}}{${value.denominator}}';
+    } else if (value is double) {
+      String formatted = value.toStringAsFixed(precision);
+      // 移除尾随的零和小数点
+      formatted = formatted.replaceAll(RegExp(r'\.0+$'), '');
+      // 如果最后是小数点，也移除
+      if (formatted.endsWith('.')) {
+        formatted = formatted.substring(0, formatted.length - 1);
+      }
+      return formatted;
+    } else {
+      return value.toString();
     }
-    return formatted;
   }
 
   /// 尝试对二次方程进行因式分解
@@ -345,8 +353,8 @@ class SolverService {
     final parts = _parseLinearEquation(input, variable);
     final a = parts.a, b = parts.b, c = parts.c, d = parts.d;
 
-    final newA = _rationalFromDouble(a) - _rationalFromDouble(c);
-    final newD = _rationalFromDouble(d) - _rationalFromDouble(b);
+    final newA = a - c;
+    final newD = d - b;
 
     steps.add(
       CalculationStep(
@@ -354,7 +362,15 @@ class SolverService {
         title: '移项',
         explanation: '将所有含 $variable 的项移到等式左边，常数项移到右边。',
         formula:
-            '\$\$$a$variable ${c >= 0 ? '-' : '+'} ${c.abs()}$variable = $d ${b >= 0 ? '-' : '+'} ${b.abs()}\$\$',
+            '\$\$${_formatNumber(a)}$variable ${_formatNumber(c) == '0'
+                ? ''
+                : c >= Rational.zero
+                ? '-'
+                : '+'} ${_formatNumber(c.abs())}$variable = ${_formatNumber(d)} ${_formatNumber(b) == '0'
+                ? ''
+                : b >= Rational.zero
+                ? '-'
+                : '+'} ${_formatNumber(b.abs())}\$\$',
       ),
     );
 
@@ -364,7 +380,7 @@ class SolverService {
         title: '合并同类项',
         explanation: '合并等式两边的项。',
         formula:
-            '\$\$${_formatNumber(newA.toDouble())}$variable = ${_formatNumber(newD.toDouble())}\$\$',
+            '\$\$${_formatNumber(newA)}$variable = ${_formatNumber(newD)}\$\$',
       ),
     );
 
@@ -380,14 +396,15 @@ class SolverService {
       CalculationStep(
         stepNumber: 3,
         title: '求解 $variable',
-        explanation: '两边同时除以 $variable 的系数 ($newA)。',
-        formula: '\$\$$variable = \\frac{$newD}{$newA}\$\$',
+        explanation: '两边同时除以 $variable 的系数 (${_formatNumber(newA)})。',
+        formula:
+            '\$\$$variable = \\frac{${_formatNumber(newD)}}{${_formatNumber(newA)}}\$\$',
       ),
     );
 
     return CalculationResult(
       steps: steps,
-      finalAnswer: '\$\$$variable = $x\$\$',
+      finalAnswer: '\$\$$variable = ${_formatNumber(x)}\$\$',
     );
   }
 
@@ -801,8 +818,12 @@ class SolverService {
     final p1 = _parseTwoVariableLinear(equations[0]);
     final p2 = _parseTwoVariableLinear(equations[1]);
 
-    double a1 = p1[0], b1 = p1[1], c1 = p1[2];
-    double a2 = p2[0], b2 = p2[1], c2 = p2[2];
+    final a1Rat = _rationalFromDouble(p1[0]);
+    final b1Rat = _rationalFromDouble(p1[1]);
+    final c1Rat = _rationalFromDouble(p1[2]);
+    final a2Rat = _rationalFromDouble(p2[0]);
+    final b2Rat = _rationalFromDouble(p2[1]);
+    final c2Rat = _rationalFromDouble(p2[2]);
 
     steps.add(
       CalculationStep(
@@ -813,43 +834,56 @@ class SolverService {
             '''
 \$\$
 \\begin{cases}
-${a1}x ${b1 >= 0 ? '+' : ''} ${b1}y = $c1 & (1) \\\\
-${a2}x ${b2 >= 0 ? '+' : ''} ${b2}y = $c2 & (2)
+${_formatNumber(a1Rat)}x ${_formatNumber(b1Rat) == '0'
+                ? ''
+                : b1Rat >= Rational.zero
+                ? '+'
+                : ''} ${_formatNumber(b1Rat)}y = ${_formatNumber(c1Rat)} & (1) \\\\
+${_formatNumber(a2Rat)}x ${_formatNumber(b2Rat) == '0'
+                ? ''
+                : b2Rat >= Rational.zero
+                ? '+'
+                : ''} ${_formatNumber(b2Rat)}y = ${_formatNumber(c2Rat)} & (2)
 \\end{cases}
 \$\$
 ''',
       ),
     );
 
-    final det =
-        _rationalFromDouble(a1) * _rationalFromDouble(b2) -
-        _rationalFromDouble(a2) * _rationalFromDouble(b1);
+    final det = a1Rat * b2Rat - a2Rat * b1Rat;
     if (det == Rational.zero) {
-      final infiniteCheck =
-          _rationalFromDouble(a1) * _rationalFromDouble(c2) -
-          _rationalFromDouble(a2) * _rationalFromDouble(c1);
+      final infiniteCheck = a1Rat * c2Rat - a2Rat * c1Rat;
       return CalculationResult(
         steps: steps,
         finalAnswer: infiniteCheck == Rational.zero ? '有无穷多解' : '无解',
       );
     }
 
-    final newA1 = _rationalFromDouble(a1) * _rationalFromDouble(b2);
-    final newC1 = _rationalFromDouble(c1) * _rationalFromDouble(b2);
-    final newA2 = _rationalFromDouble(a2) * _rationalFromDouble(b1);
-    final newC2 = _rationalFromDouble(c2) * _rationalFromDouble(b1);
+    final newA1 = a1Rat * b2Rat;
+    final newC1 = c1Rat * b2Rat;
+    final newA2 = a2Rat * b1Rat;
+    final newC2 = c2Rat * b1Rat;
 
     steps.add(
       CalculationStep(
         stepNumber: 1,
         title: '消元',
-        explanation: '为了消去变量 y，将方程(1)两边乘以 $b2，方程(2)两边乘以 $b1。',
+        explanation:
+            '为了消去变量 y，将方程(1)两边乘以 ${_formatNumber(b2Rat)}，方程(2)两边乘以 ${_formatNumber(b1Rat)}。',
         formula:
             '''
 \$\$
 \\begin{cases}
-${_formatNumber(newA1.toDouble(), precision: 2)}x ${b1 * b2 >= 0 ? '+' : ''} ${_formatNumber((b1 * b2), precision: 2)}y = ${_formatNumber(newC1.toDouble(), precision: 2)} & (3) \\\\
-${_formatNumber(newA2.toDouble(), precision: 2)}x ${b1 * b2 >= 0 ? '+' : ''} ${_formatNumber((b1 * b2), precision: 2)}y = ${_formatNumber(newC2.toDouble(), precision: 2)} & (4)
+${_formatNumber(newA1)}x ${_formatNumber(b1Rat * b2Rat) == '0'
+                ? ''
+                : b1Rat * b2Rat >= Rational.zero
+                ? '+'
+                : ''} ${_formatNumber(b1Rat * b2Rat)}y = ${_formatNumber(newC1)} & (3) \\\\
+${_formatNumber(newA2)}x ${_formatNumber(b1Rat * b2Rat) == '0'
+                ? ''
+                : b1Rat * b2Rat >= Rational.zero
+                ? '+'
+                : ''} ${_formatNumber(b1Rat * b2Rat)}y = ${_formatNumber(newC2)} & (4)
 \\end{cases}
 \$\$
 ''',
@@ -865,7 +899,7 @@ ${_formatNumber(newA2.toDouble(), precision: 2)}x ${b1 * b2 >= 0 ? '+' : ''} ${_
         title: '相减',
         explanation: '将方程(3)减去方程(4)，得到一个只含 x 的方程。',
         formula:
-            '\$\$(${_formatNumber(newA1.toDouble(), precision: 2)} - ${_formatNumber(newA2.toDouble(), precision: 2)})x = ${_formatNumber(newC1.toDouble(), precision: 2)} - ${_formatNumber(newC2.toDouble(), precision: 2)} \\Rightarrow ${_formatNumber(xCoeff.toDouble(), precision: 2)}x = ${_formatNumber(constCoeff.toDouble(), precision: 2)}\$\$',
+            '\$\$(${_formatNumber(newA1)} - ${_formatNumber(newA2)})x = ${_formatNumber(newC1)} - ${_formatNumber(newC2)} \\Rightarrow ${_formatNumber(xCoeff)}x = ${_formatNumber(constCoeff)}\$\$',
       ),
     );
 
@@ -875,27 +909,27 @@ ${_formatNumber(newA2.toDouble(), precision: 2)}x ${b1 * b2 >= 0 ? '+' : ''} ${_
         stepNumber: 3,
         title: '解出 x',
         explanation: '求解上述方程得到 x 的值。',
-        formula: '\$\$x = ${_formatNumber(x.toDouble())}\$\$',
+        formula: '\$\$x = ${_formatNumber(x)}\$\$',
       ),
     );
 
-    if (b1.abs() < 1e-9) {
-      final yCoeff = b2;
-      final yConst = c2 - a2 * x.toDouble();
+    if (b1Rat.abs() < Rational(BigInt.from(1), BigInt.from(1000000000))) {
+      final yCoeff = b2Rat;
+      final yConst = c2Rat - a2Rat * x;
       final y = yConst / yCoeff;
       steps.add(
         CalculationStep(
           stepNumber: 4,
           title: '回代求解 y',
-          explanation: '将 x = ${_formatNumber(x.toDouble())} 代入原方程(2)中。',
+          explanation: '将 x = ${_formatNumber(x)} 代入原方程(2)中。',
           formula:
               '''
 \$\$
 \\begin{aligned}
-$a2(${_formatNumber(x.toDouble())}) + ${b2}y &= $c2 \\\\
-${a2 * x.toDouble()} + ${b2}y &= $c2 \\\\
-${b2}y &= $c2 - ${a2 * x.toDouble()} \\\\
-${b2}y &= ${c2 - a2 * x.toDouble()}
+${_formatNumber(a2Rat)}(${_formatNumber(x)}) + ${_formatNumber(b2Rat)}y &= ${_formatNumber(c2Rat)} \\\\
+${_formatNumber(a2Rat * x)} + ${_formatNumber(b2Rat)}y &= ${_formatNumber(c2Rat)} \\\\
+${_formatNumber(b2Rat)}y &= ${_formatNumber(c2Rat)} - ${_formatNumber(a2Rat * x)} \\\\
+${_formatNumber(b2Rat)}y &= ${_formatNumber(c2Rat - a2Rat * x)}
 \\end{aligned}
 \$\$
 ''',
@@ -906,31 +940,31 @@ ${b2}y &= ${c2 - a2 * x.toDouble()}
           stepNumber: 5,
           title: '解出 y',
           explanation: '求解得到 y 的值。',
-          formula: '\$\$y = ${_formatNumber(y.toDouble())}\$\$',
+          formula: '\$\$y = ${_formatNumber(y)}\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
         finalAnswer:
-            '\$\$x = ${_formatNumber(x.toDouble())}, \\quad y = ${_formatNumber(y.toDouble())}\$\$',
+            '\$\$x = ${_formatNumber(x)}, \\quad y = ${_formatNumber(y)}\$\$',
       );
     } else {
-      final yCoeff = b1;
-      final yConst = c1 - a1 * x.toDouble();
+      final yCoeff = b1Rat;
+      final yConst = c1Rat - a1Rat * x;
       final y = yConst / yCoeff;
       steps.add(
         CalculationStep(
           stepNumber: 4,
           title: '回代求解 y',
-          explanation: '将 x = ${_formatNumber(x.toDouble())} 代入原方程(1)中。',
+          explanation: '将 x = ${_formatNumber(x)} 代入原方程(1)中。',
           formula:
               '''
 \$\$
 \\begin{aligned}
-$a1(${_formatNumber(x.toDouble())}) + ${b1}y &= $c1 \\\\
-${a1 * x.toDouble()} + ${b1}y &= $c1 \\\\
-${b1}y &= $c1 - ${a1 * x.toDouble()} \\\\
-${b1}y &= ${c1 - a1 * x.toDouble()}
+${_formatNumber(a1Rat)}(${_formatNumber(x)}) + ${_formatNumber(b1Rat)}y &= ${_formatNumber(c1Rat)} \\\\
+${_formatNumber(a1Rat * x)} + ${_formatNumber(b1Rat)}y &= ${_formatNumber(c1Rat)} \\\\
+${_formatNumber(b1Rat)}y &= ${_formatNumber(c1Rat)} - ${_formatNumber(a1Rat * x)} \\\\
+${_formatNumber(b1Rat)}y &= ${_formatNumber(c1Rat - a1Rat * x)}
 \\end{aligned}
 \$\$
 ''',
@@ -941,13 +975,13 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
           stepNumber: 5,
           title: '解出 y',
           explanation: '求解得到 y 的值。',
-          formula: '\$\$y = ${_formatNumber(y.toDouble())}\$\$',
+          formula: '\$\$y = ${_formatNumber(y)}\$\$',
         ),
       );
       return CalculationResult(
         steps: steps,
         finalAnswer:
-            '\$\$x = ${_formatNumber(x.toDouble())}, \\quad y = ${_formatNumber(y.toDouble())}\$\$',
+            '\$\$x = ${_formatNumber(x)}, \\quad y = ${_formatNumber(y)}\$\$',
       );
     }
   }
@@ -1218,10 +1252,10 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
     final rightCoeffs = _parsePolynomial(parts[1], variable);
 
     return LinearEquationParts(
-      (leftCoeffs[1] ?? 0.0),
-      (leftCoeffs[0] ?? 0.0),
-      (rightCoeffs[1] ?? 0.0),
-      (rightCoeffs[0] ?? 0.0),
+      _rationalFromDouble(leftCoeffs[1] ?? 0.0),
+      _rationalFromDouble(leftCoeffs[0] ?? 0.0),
+      _rationalFromDouble(rightCoeffs[1] ?? 0.0),
+      _rationalFromDouble(rightCoeffs[0] ?? 0.0),
     );
   }
 
@@ -1702,7 +1736,18 @@ ${b1}y &= ${c1 - a1 * x.toDouble()}
   /// 格式化有理数为 LaTeX 分数形式
   String _formatRational(Rational r) {
     if (r.denominator == BigInt.one) return r.numerator.toString();
-    return '\\frac{${r.numerator}}{${r.denominator}}';
+
+    // 简化分数
+    final gcd = r.numerator.gcd(r.denominator);
+    final num = r.numerator ~/ gcd;
+    final den = r.denominator ~/ gcd;
+
+    // 处理负号，将其移到分子
+    if (den < BigInt.zero) {
+      return '\\frac{${-num}}{${-den}}';
+    }
+
+    return '\\frac{$num}{$den}';
   }
 
   /// 从因式分解形式计算二次方程的根
