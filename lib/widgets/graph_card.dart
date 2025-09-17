@@ -32,10 +32,8 @@ class _GraphCardState extends State<GraphCard> {
   double? _manualY;
 
   /// 生成函数图表的点
-  ({List<FlSpot> leftPoints, List<FlSpot> rightPoints}) _generatePlotPoints(
-    String expression,
-    double zoomFactor,
-  ) {
+  ({List<FlSpot> leftPoints, List<FlSpot> rightPoints, bool shouldSplit})
+  _generatePlotPoints(String expression, double zoomFactor) {
     try {
       // 使用solver准备函数表达式（展开因式形式）
       String functionExpr = _solverService.prepareFunctionForGraphing(
@@ -44,7 +42,7 @@ class _GraphCardState extends State<GraphCard> {
 
       // 如果表达式不包含 x，返回空列表
       if (!functionExpr.contains('x') && !functionExpr.contains('X')) {
-        return (leftPoints: [], rightPoints: []);
+        return (leftPoints: [], rightPoints: [], shouldSplit: false);
       }
 
       // 预处理表达式，确保格式正确
@@ -72,6 +70,18 @@ class _GraphCardState extends State<GraphCard> {
       final parser = Parser(functionExpr);
       final expr = parser.parse();
 
+      // 检查函数在 x=0 处是否有垂直渐近线
+      bool hasVerticalAsymptoteAtZero = false;
+      try {
+        final substituted = expr.substitute('x', DoubleExpr(0.0));
+        final evaluated = substituted.evaluate();
+        if (evaluated is DoubleExpr) {
+          hasVerticalAsymptoteAtZero = !evaluated.value.isFinite;
+        }
+      } catch (e) {
+        hasVerticalAsymptoteAtZero = true;
+      }
+
       // 根据缩放因子动态调整范围和步长
       final range = 10.0 * zoomFactor;
       final step = max(0.01, 0.05 / zoomFactor); // 更小的步长以获得更好的分辨率
@@ -79,6 +89,7 @@ class _GraphCardState extends State<GraphCard> {
       // 生成点
       List<FlSpot> leftPoints = [];
       List<FlSpot> rightPoints = [];
+      List<FlSpot> allPoints = [];
       for (double i = -range; i <= range; i += step) {
         // 跳过 x = 0 以避免在 y=1/x 等函数中的奇点
         if (i.abs() < 1e-10) continue;
@@ -91,10 +102,14 @@ class _GraphCardState extends State<GraphCard> {
           if (evaluated is DoubleExpr) {
             final y = evaluated.value;
             if (y.isFinite && y.abs() <= 100.0) {
-              if (i < 0) {
-                leftPoints.add(FlSpot(i, y));
-              } else {
-                rightPoints.add(FlSpot(i, y));
+              final spot = FlSpot(i, y);
+              allPoints.add(spot);
+              if (hasVerticalAsymptoteAtZero) {
+                if (i < 0) {
+                  leftPoints.add(spot);
+                } else {
+                  rightPoints.add(spot);
+                }
               }
             }
           }
@@ -104,17 +119,30 @@ class _GraphCardState extends State<GraphCard> {
         }
       }
 
-      // 排序点按 x 值
-      leftPoints.sort((a, b) => a.x.compareTo(b.x));
-      rightPoints.sort((a, b) => a.x.compareTo(b.x));
+      if (hasVerticalAsymptoteAtZero) {
+        // 排序点按 x 值
+        leftPoints.sort((a, b) => a.x.compareTo(b.x));
+        rightPoints.sort((a, b) => a.x.compareTo(b.x));
 
-      debugPrint(
-        'Generated ${leftPoints.length} left dots and ${rightPoints.length} right dots with zoom factor $zoomFactor',
-      );
-      return (leftPoints: leftPoints, rightPoints: rightPoints);
+        debugPrint(
+          'Generated ${leftPoints.length} left dots and ${rightPoints.length} right dots with zoom factor $zoomFactor (split due to asymptote)',
+        );
+        return (
+          leftPoints: leftPoints,
+          rightPoints: rightPoints,
+          shouldSplit: true,
+        );
+      } else {
+        // 不需要分割，直接返回所有点
+        allPoints.sort((a, b) => a.x.compareTo(b.x));
+        debugPrint(
+          'Generated ${allPoints.length} dots with zoom factor $zoomFactor (no split)',
+        );
+        return (leftPoints: allPoints, rightPoints: [], shouldSplit: false);
+      }
     } catch (e) {
       debugPrint('Error generating plot points: $e');
-      return (leftPoints: [], rightPoints: []);
+      return (leftPoints: [], rightPoints: [], shouldSplit: false);
     }
   }
 
@@ -280,7 +308,11 @@ class _GraphCardState extends State<GraphCard> {
                   height: 340,
                   child: Builder(
                     builder: (context) {
-                      final (:leftPoints, :rightPoints) = _generatePlotPoints(
+                      final (
+                        :leftPoints,
+                        :rightPoints,
+                        :shouldSplit,
+                      ) = _generatePlotPoints(
                         widget.expression,
                         widget.zoomFactor,
                       );
@@ -383,26 +415,44 @@ class _GraphCardState extends State<GraphCard> {
                               },
                             ),
                           ),
-                          lineBarsData: [
-                            if (leftPoints.isNotEmpty)
-                              LineChartBarData(
-                                spots: leftPoints,
-                                isCurved: true,
-                                color: Theme.of(context).colorScheme.primary,
-                                barWidth: 3,
-                                belowBarData: BarAreaData(show: false),
-                                dotData: FlDotData(show: false),
-                              ),
-                            if (rightPoints.isNotEmpty)
-                              LineChartBarData(
-                                spots: rightPoints,
-                                isCurved: true,
-                                color: Theme.of(context).colorScheme.primary,
-                                barWidth: 3,
-                                belowBarData: BarAreaData(show: false),
-                                dotData: FlDotData(show: false),
-                              ),
-                          ],
+                          lineBarsData: shouldSplit
+                              ? [
+                                  if (leftPoints.isNotEmpty)
+                                    LineChartBarData(
+                                      spots: leftPoints,
+                                      isCurved: true,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      barWidth: 3,
+                                      belowBarData: BarAreaData(show: false),
+                                      dotData: FlDotData(show: false),
+                                    ),
+                                  if (rightPoints.isNotEmpty)
+                                    LineChartBarData(
+                                      spots: rightPoints,
+                                      isCurved: true,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      barWidth: 3,
+                                      belowBarData: BarAreaData(show: false),
+                                      dotData: FlDotData(show: false),
+                                    ),
+                                ]
+                              : [
+                                  if (leftPoints.isNotEmpty)
+                                    LineChartBarData(
+                                      spots: leftPoints,
+                                      isCurved: true,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      barWidth: 3,
+                                      belowBarData: BarAreaData(show: false),
+                                      dotData: FlDotData(show: false),
+                                    ),
+                                ],
                           minX: bounds.minX,
                           maxX: bounds.maxX,
                           minY: bounds.minY,
